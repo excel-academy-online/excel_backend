@@ -84,6 +84,8 @@ const ALLOW_ANONYMOUS = new Set([
   "POST /api/admin/login",
   // Authenticated by Paystack's HMAC signature rather than a user token.
   "POST /api/payment/webhook",
+  // A static "payment received" page; it grants nothing.
+  "GET /api/payment/callback",
 ]);
 const protectedRoutes = [];
 const publicRoutes = [];

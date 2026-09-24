@@ -47,6 +47,15 @@ function requestedCourseIds(body = {}) {
   return [...new Set((Array.isArray(raw) ? raw : [raw]).map(String).filter(Boolean))];
 }
 
+/**
+ * This API's public origin, for Paystack's redirect. PUBLIC_BASE_URL wins when
+ * set; otherwise it is derived from the request (trust proxy is on, so the
+ * scheme is the one the client actually used).
+ */
+const callbackBase = (req) =>
+  (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "") ||
+  (typeof req.get === "function" && req.get("host") ? `${req.protocol}://${req.get("host")}` : "");
+
 const lessonCount = (c) => (c.lesson || []).reduce((n, s) => n + (s.content || []).length, 0);
 
 /**
@@ -166,6 +175,9 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
       currency: "NGN",
       reference,
       metadata: { uid: req.uid, courseIds: toBuy.map((d) => d.id) },
+      // Where Paystack sends the browser afterwards. The app's payment web view
+      // closes itself when it sees this URL, then verifies the reference.
+      ...(callbackBase(req) ? { callback_url: `${callbackBase(req)}/api/payment/callback` } : {}),
     });
   } catch (err) {
     await db.collection(PAYMENTS).doc(reference).set({ status: "init_failed" }, { merge: true });
@@ -248,5 +260,24 @@ module.exports.PaystackWebhook = catchAsync(async (req, res) => {
   }
   res.status(200).json({ status: "ok" });
 });
+
+/**
+ * GET /api/payment/callback - where Paystack redirects after checkout.
+ *
+ * The app intercepts this URL before it loads, so this page is only ever seen
+ * in a normal browser. It confirms nothing by itself; enrolment happens via
+ * verify-payment or the webhook.
+ */
+module.exports.PaymentCallback = (req, res) => {
+  res
+    .status(200)
+    .type("html")
+    .send(
+      '<!doctype html><meta name="viewport" content="width=device-width">' +
+        "<title>Payment received</title>" +
+        '<body style="font-family:system-ui;text-align:center;padding:48px">' +
+        "<h2>Payment received</h2><p>You can return to the Excel Academy app.</p></body>"
+    );
+};
 
 module.exports._fulfil = fulfil;

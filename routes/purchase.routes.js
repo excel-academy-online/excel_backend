@@ -2,6 +2,7 @@ const {
   InitializePayment,
   VerifyPayment,
   PaystackWebhook,
+  PaymentCallback,
 } = require("../controllers/payment.controller");
 const { StrictLimiter } = require("../middleware/Limiter");
 const { requireAuth } = require("../middleware/auth");
@@ -17,5 +18,8 @@ router.get("/verify-payment/:reference", StrictLimiter, requireAuth, VerifyPayme
 // Paystack's server calls this; it proves itself with an HMAC signature
 // instead of a user token.
 router.post("/webhook", PaystackWebhook);
+
+// The page Paystack redirects the browser to; the app closes its web view on it.
+router.get("/callback", PaymentCallback);
 
 module.exports = router;

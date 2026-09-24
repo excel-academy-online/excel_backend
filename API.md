@@ -211,6 +211,7 @@ token refresh (the script revokes existing sessions to force this).
 | `POST` | `/api/payment/initialize-payment` | User | application/json |
 | `GET` | `/api/payment/verify-payment/:reference` | User | application/json |
 | `POST` | `/api/payment/webhook` | UNGUARDED | application/json |
+| `GET` | `/api/payment/callback` | UNGUARDED | application/json |
 
 ### Certificates
 
