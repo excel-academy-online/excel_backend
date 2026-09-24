@@ -9,14 +9,15 @@
     "dev": "nodemon index.js",
     "audit:routes": "node scripts/auditRoutes.js",
     "set:role": "node scripts/setRole.js",
-    "test": "node scripts/auditRoutes.js && node scripts/testAuth.js && node scripts/testRepository.js && node scripts/testControllers.js && node scripts/testChat.js && node scripts/testRecovery.js",
+    "test": "node scripts/auditRoutes.js && node scripts/testAuth.js && node scripts/testRepository.js && node scripts/testControllers.js && node scripts/testChat.js && node scripts/testRecovery.js && node scripts/testPayments.js",
     "test:auth": "node scripts/testAuth.js",
     "docs": "node scripts/genApiDocs.js",
     "inspect": "node scripts/inspectData.js",
     "test:repo": "node scripts/testRepository.js",
     "test:controllers": "node scripts/testControllers.js",
     "test:chat": "node scripts/testChat.js",
-    "test:recovery": "node scripts/testRecovery.js"
+    "test:recovery": "node scripts/testRecovery.js",
+    "test:payments": "node scripts/testPayments.js"
   },
   "keywords": [],
   "author": "",

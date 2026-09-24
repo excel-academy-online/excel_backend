@@ -32,6 +32,8 @@ const decryptVideo = require("../utils/decryptVideo");
 // Routes the live catalogue reads through MongoDB or Firestore depending on
 // DATA_SOURCE. See repositories/courseRepository.js.
 const courseRepo = require("../repositories/courseRepository");
+const { legacyCourse } = require("../utils/legacyCourseShape");
+const { ownsCourse, ownedCourseIds } = require("../utils/ownership");
 // const fs = require("fs");
 // const getVideoDurationInSeconds = require("get-video-duration");
 // Resolved lazily: parsing these at import time crashed the whole process on
@@ -1819,17 +1821,34 @@ module.exports.GetCourseDetails = catchAsync(async (req, res, next) => {
     }
   }
 
+  // On Firestore, translate to the shape the app parses and only reveal video
+  // URLs to someone who has paid for the course.
+  let courseDetails = innerCourseId;
+  if (courseRepo.source === "firestore") {
+    const owned = await ownsCourse(req.uid, courseId);
+    courseDetails = legacyCourse(innerCourseId, { owned });
+  }
+
   res.status(200).json({
     status: "ok",
     success: true,
     message: "Course details fetched succesfully",
-    courseDetails: innerCourseId,
-    // videoToPlay,
+    courseDetails,
   });
 });
 
 module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
-  const AllCourses = await courseRepo.findAll();
+  let AllCourses = await courseRepo.findAll();
+
+  if (courseRepo.source === "firestore") {
+    // Only published courses reach students, in the shape the app parses.
+    // Video URLs are withheld here even for owners: the list never plays
+    // anything, and one call carrying every URL would be a free download list.
+    const owned = new Set(await ownedCourseIds(req.uid));
+    AllCourses = AllCourses.filter((c) => Number(c.status) === 1).map((c) =>
+      legacyCourse(c, { owned: false, withLessons: true })
+    ).map((c) => ({ ...c, owned: owned.has(c._id) }));
+  }
   // 202 is preserved deliberately: the shipped ExcelGroup client treats
   // anything other than 202 as a failure.
   res.status(202).json({

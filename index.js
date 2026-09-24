@@ -67,7 +67,9 @@ app.use(
 );
 
 // Cap request bodies; the default is unbounded enough to be a cheap DoS.
-app.use(express.json({ limit: "1mb" }));
+// Keep the raw bytes: Paystack signs the exact body it sends, so the webhook
+// has to verify against those bytes, not a re-serialised copy.
+app.use(express.json({ limit: "1mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(xss());
 app.use(mongoSanitize());

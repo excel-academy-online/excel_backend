@@ -189,6 +189,7 @@ token refresh (the script revokes existing sessions to force this).
 | `POST` | `/api/students/enroll` | User | application/json |
 | `GET` | `/api/students/recovery` | User | application/json |
 | `POST` | `/api/students/recovery/claim` | User | application/json |
+| `GET` | `/api/students/my-courses` | User | application/json |
 | `GET` | `/api/students/getStudents` | **Admin** | application/json |
 | `GET` | `/api/students/getAllStudents` | **Admin** | application/json |
 | `GET` | `/api/students/getStudentDetail` | **Admin** | application/json |
@@ -207,8 +208,9 @@ token refresh (the script revokes existing sessions to force this).
 
 | Method | Path | Access | Body |
 | --- | --- | --- | --- |
-| `POST` | `/api/payment/initialize-payment` | Public | application/json |
-| `GET` | `/api/payment/verify-payment/:reference` | Public | application/json |
+| `POST` | `/api/payment/initialize-payment` | User | application/json |
+| `GET` | `/api/payment/verify-payment/:reference` | User | application/json |
+| `POST` | `/api/payment/webhook` | UNGUARDED | application/json |
 
 ### Certificates
 
