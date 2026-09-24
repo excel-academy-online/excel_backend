@@ -1,0 +1,18 @@
+# Never upload these to Cloud Build.
+node_modules/
+.git/
+.env
+.env.*
+!.env.example
+
+# Credentials must NOT ship in the image. On Cloud Run the app authenticates
+# as the project's own service account (Application Default Credentials), so
+# no key file is needed at all.
+serviceAccountKey.json
+*serviceAccount*.json
+
+# Tests and tooling are not needed at runtime.
+scripts/test*.js
+scripts/inspectData.js
+scripts/importWordpress.js
+*.log

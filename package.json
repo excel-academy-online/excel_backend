@@ -1,0 +1,55 @@
+{
+  "name": "excel-academy-backend",
+  "version": "1.0.0",
+  "description": "Excel Academy learning platform API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "server": "nodemon index.js",
+    "dev": "nodemon index.js",
+    "audit:routes": "node scripts/auditRoutes.js",
+    "set:role": "node scripts/setRole.js",
+    "test": "node scripts/auditRoutes.js && node scripts/testAuth.js && node scripts/testRepository.js && node scripts/testControllers.js && node scripts/testChat.js && node scripts/testRecovery.js",
+    "test:auth": "node scripts/testAuth.js",
+    "docs": "node scripts/genApiDocs.js",
+    "inspect": "node scripts/inspectData.js",
+    "test:repo": "node scripts/testRepository.js",
+    "test:controllers": "node scripts/testControllers.js",
+    "test:chat": "node scripts/testChat.js",
+    "test:recovery": "node scripts/testRecovery.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.3",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "firebase": "^10.7.1",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "get-video-duration": "^4.1.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.15",
+    "pdfkit": "^0.15.0",
+    "xss-clean": "^0.1.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
