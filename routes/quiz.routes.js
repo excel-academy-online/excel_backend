@@ -6,6 +6,7 @@ const router = require("express").Router();
 router.get("/questions", requireAuth, q.GetQuestions);
 router.post("/results", requireAuth, q.SubmitResult);
 router.get("/leaderboard", requireAuth, q.Leaderboard);
+router.get("/me", requireAuth, q.MyStats);
 
 // Live matches between two students. The controller checks the caller is a
 // player in the match.

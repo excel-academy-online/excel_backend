@@ -91,6 +91,7 @@ const sd = ctl("studentData.controller.js");
 const quiz = ctl("quiz.controller.js");
 const ref = ctl("referral.controller.js");
 const disc = ctl("discover.controller.js");
+const rev = ctl("review.controller.js");
 
 /** Run a catchAsync handler; resolves to { code, body } or { error }. */
 function call(handler, req) {
@@ -300,6 +301,33 @@ function seed() {
     fails(await call(ref.AdminDecidePayout, { uid: "staff", role: "admin", params: { id }, body: { status: "paid" } }), 409);
     const s = ok(await call(ref.Stats, { uid: "u1", query: { period: "allTime" } }));
     assert.strictEqual(s.body.data.points, 800);
+  });
+
+  /* reviews & quiz stats */
+  await test("only enrolled students can review; posting again edits", async () => {
+    fails(await call(rev.SaveReview, { uid: "u2", params: { courseId: "c1" }, body: { rating: 5, text: "Great" } }), 403);
+    fails(await call(rev.SaveReview, { uid: "u1", params: { courseId: "c1" }, body: { rating: 9, text: "Great" } }), 400);
+    const first = ok(await call(rev.SaveReview, { uid: "u1", params: { courseId: "c1" }, body: { rating: 4, text: "Great" } }));
+    assert.strictEqual(first.code, 201);
+    const again = ok(await call(rev.SaveReview, { uid: "u1", params: { courseId: "c1" }, body: { rating: 2, text: "Changed my mind" } }));
+    assert.strictEqual(again.code, 200);
+    const list = ok(await call(rev.ListReviews, { uid: "u1", params: { courseId: "c1" } }));
+    assert.strictEqual(list.body.data.count, 1);
+    assert.strictEqual(list.body.data.average, 2);
+    assert.strictEqual(list.body.data.mine.text, "Changed my mind");
+  });
+  await test("students can't delete other people's reviews", async () => {
+    fails(await call(rev.DeleteReview, { uid: "u2", params: { courseId: "c1", uid: "u1" } }), 403);
+    ok(await call(rev.DeleteReview, { uid: "staff", role: "admin", params: { courseId: "c1", uid: "u1" } }));
+  });
+  await test("quiz stats count only the caller's games", async () => {
+    const me = ok(await call(quiz.MyStats, { uid: "u1" }));
+    assert.strictEqual(me.body.data.games, 1);
+    assert.strictEqual(me.body.data.bestScore, 16);
+    assert.strictEqual(me.body.data.rank, 2, "u2 scored more earlier in this run");
+    const nobody = ok(await call(quiz.MyStats, { uid: "u3" }));
+    assert.strictEqual(nobody.body.data.games, 0);
+    assert.strictEqual(nobody.body.data.rank, null);
   });
 
   const passed = results.filter(Boolean).length;

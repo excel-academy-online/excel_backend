@@ -76,4 +76,10 @@ router.get("/getEnrolledCoursesWithProgress", requireAuth, getEnrolledCoursesWit
 // Roster of everyone on a course - staff information.
 router.get("/getEnrolledStudentsByCourseId", ...requireAdmin, getEnrolledStudentsByCourseId);
 
+// Course reviews: anyone reads, enrolled students write their own.
+const reviews = require("../controllers/review.controller");
+router.get("/:courseId/reviews", optionalAuth, reviews.ListReviews);
+router.post("/:courseId/reviews", requireAuth, reviews.SaveReview);
+router.delete("/:courseId/reviews/:uid", requireAuth, reviews.DeleteReview);
+
 module.exports = router;

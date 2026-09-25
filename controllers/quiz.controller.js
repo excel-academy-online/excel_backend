@@ -283,3 +283,22 @@ exports.CancelMatch = catchAsync(async (req, res) => {
 });
 
 exports._answerIndex = answerIndex;
+
+/** GET /api/quiz/me - the pre-game card: games played, best score, rank. */
+exports.MyStats = catchAsync(async (req, res) => {
+  const all = (await db.collection("quizResults").get()).docs.map((d) => d.data());
+  const mine = all.filter((r) => r.uid === req.uid);
+  const entry = rank(all).find((e) => e.uid === req.uid);
+  res.status(200).json({
+    status: "ok",
+    message: "Quiz stats fetched",
+    data: {
+      name: displayName(req),
+      games: mine.length,
+      bestScore: mine.reduce((m, r) => Math.max(m, r.points || 0), 0),
+      totalPoints: mine.reduce((s, r) => s + (r.points || 0), 0),
+      rank: entry ? entry.rank : null,
+      questionsPerGame: DEFAULT_COUNT,
+    },
+  });
+});
