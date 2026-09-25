@@ -23,19 +23,25 @@ let store = {};
 let autoId = 0;
 const colOf = (p) => (store[p] = store[p] || {});
 
-function query(colPath, conds = []) {
-  const q = {
-    where: (f, op, v) => query(colPath, [...conds, [f, op, v]]),
-    limit: () => q,
-    async get() {
-      const docs = Object.entries(colOf(colPath))
-        .filter(([, d]) => conds.every(([f, op, v]) =>
-          op === "==" ? d[f] === v : op === "in" ? v.includes(d[f]) : op === ">=" ? d[f] >= v : false))
-        .map(([id, d]) => snapOf(colPath, id, d));
-      return { empty: !docs.length, docs };
-    },
+function query(colPath, conds = [], order = null, max = Infinity) {
+  const run = () => {
+    let docs = Object.entries(colOf(colPath))
+      .filter(([, d]) => conds.every(([f, op, v]) =>
+        op === "==" ? d[f] === v : op === "in" ? v.includes(d[f]) : op === ">=" ? d[f] >= v : op === ">" ? d[f] > v : false))
+      .map(([id, d]) => snapOf(colPath, id, d));
+    if (order) {
+      const [field, dir] = order;
+      docs.sort((a, b) => (dir === "desc" ? -1 : 1) * ((a.data()[field] || 0) - (b.data()[field] || 0)));
+    }
+    return docs.slice(0, max);
   };
-  return q;
+  return {
+    where: (f, op, v) => query(colPath, [...conds, [f, op, v]], order, max),
+    orderBy: (field, dir) => query(colPath, conds, [field, dir], max),
+    limit: (n) => query(colPath, conds, order, n),
+    count: () => ({ async get() { const n = run().length; return { data: () => ({ count: n }) }; } }),
+    async get() { const docs = run(); return { empty: !docs.length, docs }; },
+  };
 }
 function snapOf(colPath, id, d) {
   return { id, exists: d !== undefined, ref: docRef(colPath, id), data: () => (d === undefined ? undefined : JSON.parse(JSON.stringify(d))) };
@@ -130,6 +136,7 @@ function seed() {
     g2: { program_id: "p1", status: 1, question: "Capital?", options: [{ option1: "A" }, { option2: "B" }, { option3: "C" }], questionAnswer: 2 },
     g3: { program_id: "p1", status: 0, question: "Draft", options: [{ option1: "A" }, { option2: "B" }], questionAnswer: 1 },
     g4: { program_id: "p2", status: 1, question: "Other", options: [{ option1: "A" }, { option2: "B" }], questionAnswer: 1 },
+    g5: { program_code: "CIMA", status: 1, question: "Sunk cost?", options: [{ option1: "Relevant" }, { option2: "Irrelevant" }], questionAnswer: "option2" },
   };
   users.u1 = { uid: "u1", email: "ada@x.com", displayName: "Ada", metadata: { creationTime: new Date(Date.now() - 400 * DAY).toUTCString() } };
   users.u2 = { uid: "u2", email: "bo@x.com", displayName: "Bo", metadata: { creationTime: new Date().toUTCString() } };
@@ -218,65 +225,95 @@ function seed() {
     assert.strictEqual(quiz._answerIndex(2, 4), 2);
     assert.strictEqual(quiz._answerIndex("option9", 4), null);
   });
-  await test("questions: only published ones for the chosen programme", async () => {
-    const q = ok(await call(quiz.GetQuestions, { uid: "u1", query: { program: "ICAN" } }));
-    const ids = q.body.data.map((x) => x.id).sort();
-    assert.deepStrictEqual(ids, ["g1", "g2"]);
-    const g1 = q.body.data.find((x) => x.id === "g1");
-    assert.deepStrictEqual(g1.options, ["3", "4"]);
-    assert.deepStrictEqual(g1.correctOptions, [1]);
-  });
-  // Right answers in the seed: g1 -> option 1, g2 -> option 2.
-  const allRight = [{ id: "g1", choice: 1 }, { id: "g2", choice: 2 }];
-  const oneRight = [{ id: "g1", choice: 1 }, { id: "g2", choice: 0 }];
+  const realRandom = Math.random;
+  const answer = (handler, uid, id, questionId, choice, extra = {}) =>
+    call(handler, { uid, params: { id }, body: { questionId, choice }, ...extra });
 
-  await test("the server grades answers; claimed scores are ignored", async () => {
-    const r = ok(await call(quiz.SubmitResult, { uid: "u1", body: {
-      program: "ICAN", correct: 99, total: 50, points: 100000, opponentPoints: 8,
-      answers: [...allRight, { id: "made-up", choice: 0 }, { id: "g1", choice: 1 }],
-    } }));
-    assert.strictEqual(r.body.data.total, 2, "unknown and repeated questions don't count");
-    assert.strictEqual(r.body.data.correct, 2);
-    assert.strictEqual(r.body.data.points, 16);
-    assert.strictEqual(r.body.data.won, true);
+  await test("questions reach the phone without their answers", async () => {
+    const q = ok(await call(quiz.GetQuestions, { uid: "u1", query: { program: "ICAN" } }));
+    assert.deepStrictEqual(q.body.data.map((x) => x.id).sort(), ["g1", "g2"]);
+    assert(q.body.data.every((x) => x.correctOptions === undefined));
+    const cima = ok(await call(quiz.GetQuestions, { uid: "u1", query: { program: "CIMA" } }));
+    assert.deepStrictEqual(cima.body.data.map((x) => x.id), ["g5"], "matched by programme code");
   });
-  await test("unpublished questions can't be answered for points", async () => {
-    fails(await call(quiz.SubmitResult, { uid: "u1", body: { program: "ICAN", answers: [{ id: "g3", choice: 1 }] } }), 400);
+  await test("each answer is checked and locked on the server", async () => {
+    const s1 = ok(await call(quiz.StartSession, { uid: "u1", body: { program: "ICAN" } }));
+    assert(s1.body.data.questions.every((x) => x.correctOptions === undefined));
+    const id = s1.body.data.id;
+    const wrong = ok(await answer(quiz.AnswerSession, "u1", id, "g1", 0));
+    assert.strictEqual(wrong.body.data.correct, false);
+    assert.deepStrictEqual(wrong.body.data.correctOptions, [1]);
+    const retry = ok(await answer(quiz.AnswerSession, "u1", id, "g1", 1));
+    assert.strictEqual(retry.body.data.correct, false, "the first answer stays locked in");
+    fails(await answer(quiz.AnswerSession, "u2", id, "g1", 1), 404);
+    fails(await answer(quiz.AnswerSession, "u1", id, "g4", 1), 404);
+    // Leave g2 unanswered: it counts as wrong.
+    Math.random = () => 0.99; // Excel Bot gets nothing right
+    const res = ok(await call(quiz.SubmitResult, { uid: "u1", body: { sessionId: id, correct: 99, points: 5000 } }));
+    Math.random = realRandom;
+    assert.strictEqual(res.body.data.correct, 0);
+    assert.strictEqual(res.body.data.total, 2);
+    assert.strictEqual(res.body.data.opponentPoints, 0);
+    fails(await call(quiz.SubmitResult, { uid: "u1", body: { sessionId: id } }), 409);
+    fails(await answer(quiz.AnswerSession, "u1", id, "g2", 2), 409);
+  });
+  await test("a full solo game scores from locked answers; the bot is rolled on the server", async () => {
+    const id = ok(await call(quiz.StartSession, { uid: "u1", body: { program: "ICAN" } })).body.data.id;
+    ok(await answer(quiz.AnswerSession, "u1", id, "g1", 1));
+    ok(await answer(quiz.AnswerSession, "u1", id, "g2", 2));
+    Math.random = () => 0.99;
+    const res = ok(await call(quiz.SubmitResult, { uid: "u1", body: { sessionId: id, opponentPoints: 999 } }));
+    Math.random = realRandom;
+    assert.strictEqual(res.body.data.points, 16);
+    assert.strictEqual(res.body.data.opponentPoints, 0, "the phone can't set the bot's score");
+    assert.strictEqual(res.body.data.won, true);
   });
   await test("leaderboard ranks by points and marks the caller", async () => {
-    ok(await call(quiz.SubmitResult, { uid: "u2", user: { name: "Bo" }, body: { program: "ICAN", answers: oneRight } }));
-    const l = ok(await call(quiz.Leaderboard, { uid: "u2", query: { period: "weekly" } }));
-    assert.deepStrictEqual(l.body.data.entries.map((e) => e.uid), ["u1", "u2"]);
-    assert.strictEqual(l.body.data.me.rank, 2);
+    const id = ok(await call(quiz.StartSession, { uid: "u2", user: { name: "Bo" }, body: { program: "ICAN" } })).body.data.id;
+    ok(await answer(quiz.AnswerSession, "u2", id, "g1", 1));
+    ok(await call(quiz.SubmitResult, { uid: "u2", user: { name: "Bo" }, body: { sessionId: id } }));
+    const week = ok(await call(quiz.Leaderboard, { uid: "u2", query: { period: "weekly" } }));
+    assert.deepStrictEqual(week.body.data.entries.map((e) => e.uid), ["u1", "u2"]);
+    assert.strictEqual(week.body.data.me.rank, 2);
+    const ever = ok(await call(quiz.Leaderboard, { uid: "u2", query: { period: "allTime" } }));
+    assert.deepStrictEqual(ever.body.data.entries.map((e) => [e.uid, e.points]), [["u1", 16], ["u2", 8]]);
+    assert.strictEqual(ever.body.data.me.rank, 2);
   });
   await test("a won challenge shows up as an achievement", async () => {
     const a = ok(await call(sd.Achievements, { uid: "u1" }));
     assert.strictEqual(a.body.data.challenges.length, 1);
   });
-  await test("live match: nobody wins until both finish, then both results settle", async () => {
+  await test("live match: answers checked per player; nobody wins until both finish", async () => {
     const first = ok(await call(quiz.FindMatch, { uid: "u1", body: { program: "ICAN" } }));
     assert.strictEqual(first.body.data.status, "waiting");
+    const id = first.body.data.id;
+    fails(await answer(quiz.AnswerMatch, "u1", id, "g1", 1), 409);
     const second = ok(await call(quiz.FindMatch, { uid: "u2", user: { name: "Bo" }, body: { program: "ICAN" } }));
-    assert.strictEqual(second.body.data.id, first.body.data.id);
+    assert.strictEqual(second.body.data.id, id);
     assert.strictEqual(second.body.data.status, "active");
     assert.strictEqual(second.body.data.opponent.name, "Ada");
-    const id = first.body.data.id;
+    assert(second.body.data.questions.every((x) => x.correctOptions === undefined));
 
-    // Live score is graded too: one right answer = 8, whatever is claimed.
-    ok(await call(quiz.UpdateScore, { uid: "u1", params: { id }, body: { correct: 10, answers: [{ id: "g1", choice: 1 }] } }));
+    const a1 = ok(await answer(quiz.AnswerMatch, "u1", id, "g1", 1));
+    assert.strictEqual(a1.body.data.correct, true);
     const view = ok(await call(quiz.GetMatch, { uid: "u2", params: { id } }));
     assert.strictEqual(view.body.data.opponent.points, 8);
     fails(await call(quiz.GetMatch, { uid: "u3", params: { id } }), 404);
 
-    // Bo finishes first with 16 while Ada is still on 8: not a win yet.
-    const bo = ok(await call(quiz.SubmitResult, { uid: "u2", user: { name: "Bo" }, body: { program: "ICAN", matchId: id, answers: allRight } }));
+    // Bo gets both right and finishes first while Ada is on 8: not a win yet.
+    ok(await answer(quiz.AnswerMatch, "u2", id, "g1", 1));
+    ok(await answer(quiz.AnswerMatch, "u2", id, "g2", 2));
+    const bo = ok(await call(quiz.SubmitResult, { uid: "u2", user: { name: "Bo" }, body: { matchId: id } }));
+    assert.strictEqual(bo.body.data.points, 16);
     assert.strictEqual(bo.body.data.pending, true);
     assert.strictEqual(bo.body.data.won, false);
-    fails(await call(quiz.SubmitResult, { uid: "u2", body: { program: "ICAN", matchId: id, answers: allRight } }), 409);
+    fails(await call(quiz.SubmitResult, { uid: "u2", body: { matchId: id } }), 409);
+    fails(await answer(quiz.AnswerMatch, "u2", id, "g2", 0), 409);
 
-    // Ada finishes with 8: her result is final, and Bo's is settled as a win.
-    const ada = ok(await call(quiz.SubmitResult, { uid: "u1", body: { program: "ICAN", matchId: id, answers: oneRight } }));
-    assert.strictEqual(ada.body.data.pending, false);
+    // Ada misses g2 and finishes on 8: both results are now final.
+    ok(await answer(quiz.AnswerMatch, "u1", id, "g2", 0));
+    const ada = ok(await call(quiz.SubmitResult, { uid: "u1", body: { matchId: id } }));
+    assert.strictEqual(ada.body.data.points, 8);
     assert.strictEqual(ada.body.data.opponentPoints, 16);
     assert.strictEqual(ada.body.data.won, false);
     const boNow = store.quizResults[bo.body.data.id];
@@ -286,7 +323,7 @@ function seed() {
     assert.strictEqual(store.quizMatches[id].status, "done");
   });
   await test("no match without questions", async () => {
-    fails(await call(quiz.FindMatch, { uid: "u1", body: { program: "CIMA" } }), 404);
+    fails(await call(quiz.FindMatch, { uid: "u1", body: { program: "CFA" } }), 404);
   });
 
   /* referrals */
@@ -349,9 +386,10 @@ function seed() {
   });
   await test("quiz stats count only the caller's games", async () => {
     const me = ok(await call(quiz.MyStats, { uid: "u1" }));
-    assert.strictEqual(me.body.data.games, 2, "one bot game and one live match");
+    assert.strictEqual(me.body.data.games, 3);
     assert.strictEqual(me.body.data.bestScore, 16);
-    assert.ok(me.body.data.rank >= 1);
+    assert.strictEqual(me.body.data.totalPoints, 24);
+    assert.strictEqual(me.body.data.rank, 1);
     const nobody = ok(await call(quiz.MyStats, { uid: "u3" }));
     assert.strictEqual(nobody.body.data.games, 0);
     assert.strictEqual(nobody.body.data.rank, null);
