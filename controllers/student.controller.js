@@ -258,8 +258,27 @@ let studentsCache = null;
 module.exports.GetAllStudents = catchAsync(async (req, res) => {
   const { db } = require("../firebaseadminvar");
   if (!studentsCache || Date.now() - studentsCache.at > 30 * 1000) {
-    const snap = await db.collection("users").get();
-    studentsCache = { at: Date.now(), docs: snap.docs.map((d) => ({ ...d.data(), id: d.data().id || d.id })) };
+    const [snap, enrolSnap] = await Promise.all([db.collection("users").get(), db.collection("enrollments").get()]);
+    // Enrolments live in their own collection; the old per-user
+    // `enrolledCourses` field is empty for everyone who enrolled since.
+    const byStudent = {};
+    enrolSnap.docs.forEach((d) => {
+      const e = d.data();
+      (byStudent[e.student_id] = byStudent[e.student_id] || []).push(e.course_id);
+    });
+    studentsCache = {
+      at: Date.now(),
+      docs: snap.docs.map((d) => {
+        const u = d.data();
+        const uid = u.id || d.id;
+        return {
+          ...u,
+          id: uid,
+          name: u.name || u.username || u.displayName || (u.email || "").split("@")[0] || "",
+          enrolledCourses: byStudent[uid] || byStudent[d.id] || u.enrolledCourses || [],
+        };
+      }),
+    };
   }
   const allUsers = studentsCache.docs.filter((u) => u.type !== "admin" && u.admin !== true);
   const since = Date.now() - 48 * 60 * 60 * 1000;

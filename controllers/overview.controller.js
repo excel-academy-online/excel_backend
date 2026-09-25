@@ -14,7 +14,8 @@ exports.Overview = catchAsync(async (req, res) => {
   const [programs, courses, students, enrolments, questions, games, openChats, orders, payouts] = await Promise.all([
     count(db.collection("programs").where("status", "==", 1)),
     count(db.collection("courses").where("status", "==", 1)),
-    count(db.collection("users")),
+    // Students only: staff accounts are users too.
+    db.collection("users").get().then((s) => s.docs.filter((d) => d.data().type !== "admin" && d.data().admin !== true).length),
     count(db.collection("enrollments")),
     count(db.collection("gamification").where("status", "==", 1)),
     count(db.collection("quizResults")),
