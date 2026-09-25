@@ -1856,6 +1856,13 @@ module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
     AllCourses = AllCourses.filter((c) => Number(c.status) === 1).map((c) =>
       legacyCourse(c, { owned: false, withLessons: true })
     ).map((c) => ({ ...c, owned: owned.has(c._id) }));
+    // Real average ratings (null until a course has reviews).
+    const ratings = await require("./review.controller").ratingsByCourse();
+    AllCourses = AllCourses.map((c) => ({
+      ...c,
+      rating: (ratings[c._id] || {}).rating ?? null,
+      reviewCount: (ratings[c._id] || {}).reviewCount || 0,
+    }));
   }
   // 202 is preserved deliberately: the shipped ExcelGroup client treats
   // anything other than 202 as a failure.

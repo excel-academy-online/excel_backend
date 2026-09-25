@@ -51,6 +51,7 @@ exports.SaveReview = catchAsync(async (req, res) => {
     ...(prev.exists ? { updatedAt: nowIso } : {}),
   };
   await ref.set(data);
+  ratingCache = null;
   res.status(prev.exists ? 200 : 201).json({ status: "ok", message: "Review saved", data: shape({ id: req.uid, data: () => data }) });
 });
 
@@ -59,5 +60,33 @@ exports.DeleteReview = catchAsync(async (req, res) => {
   const isAdmin = ["admin", "superadmin"].includes(req.role);
   if (req.params.uid !== req.uid && !isAdmin) throw new AppError("You can only delete your own review", 403);
   await reviewsOf(req.params.courseId).doc(req.params.uid).delete();
+  ratingCache = null;
   res.status(200).json({ status: "ok", message: "Review deleted", data: { id: req.params.uid } });
 });
+
+/* Average rating per course, for the course lists. Cached briefly because it
+ * reads every review. */
+let ratingCache = null;
+const RATING_TTL_MS = 5 * 60 * 1000;
+
+exports.ratingsByCourse = async function ratingsByCourse() {
+  if (ratingCache && Date.now() - ratingCache.at < RATING_TTL_MS) return ratingCache.data;
+  const snap = await db.collectionGroup("reviews").get();
+  const sums = {};
+  for (const doc of snap.docs) {
+    const courseId = doc.ref.parent.parent && doc.ref.parent.parent.id;
+    const rating = Number(doc.data().rating);
+    if (!courseId || !(rating >= 1 && rating <= 5)) continue;
+    const s = (sums[courseId] = sums[courseId] || { total: 0, count: 0 });
+    s.total += rating;
+    s.count += 1;
+  }
+  const data = {};
+  for (const [id, s] of Object.entries(sums)) {
+    data[id] = { rating: Math.round((s.total / s.count) * 10) / 10, reviewCount: s.count };
+  }
+  ratingCache = { at: Date.now(), data };
+  return data;
+};
+
+exports._resetRatings = () => { ratingCache = null; };
