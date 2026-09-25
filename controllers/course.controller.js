@@ -1854,7 +1854,9 @@ module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
     // anything, and one call carrying every URL would be a free download list.
     const owned = new Set(await ownedCourseIds(req.uid));
     AllCourses = AllCourses.filter((c) => Number(c.status) === 1).map((c) =>
-      legacyCourse(c, { owned: false, withLessons: true })
+      // The catalogue only needs a summary: lessons come with course details.
+      // Sending all 128 lesson trees made this ~600 KB on every app launch.
+      legacyCourse(c, { owned: false, withLessons: req.query.lessons === "1" })
     ).map((c) => ({ ...c, owned: owned.has(c._id) }));
     // Real average ratings (null until a course has reviews).
     const ratings = await require("./review.controller").ratingsByCourse();

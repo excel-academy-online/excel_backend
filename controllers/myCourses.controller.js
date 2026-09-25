@@ -27,7 +27,7 @@ module.exports.MyCourses = catchAsync(async (req, res) => {
     .map((d) => {
       const e = byCourse.get(d.id);
       return {
-        ...legacyCourse({ _id: d.id, ...d.data() }, { owned: true }),
+        ...legacyCourse({ _id: d.id, ...d.data() }, { owned: true, withLessons: false }),
         enrolledAt: e.enrollment_date || null,
         progress: e.progress || null,
       };
