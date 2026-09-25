@@ -190,6 +190,16 @@ module.exports.SendMessage = catchAsync(async (req, res, next) => {
   );
   await batch.commit();
 
+  // Tell the student when staff reply; they may not have the chat open.
+  if (senderRole === "admin") {
+    await require("./notification.controller").notify(studentUid, {
+      type: "activities",
+      title: "New message from Excel Academy",
+      body: body.trim().slice(0, 140),
+      data: { screen: "chat" },
+    });
+  }
+
   res.status(201).json({
     status: "ok",
     message: "Message sent",

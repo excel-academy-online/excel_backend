@@ -149,6 +149,15 @@ module.exports.ClaimRecovery = catchAsync(async (req, res, next) => {
 
   await batch.commit();
 
+  if (restored.length) {
+    await require("./notification.controller").notify(req.uid, {
+      type: "account",
+      title: "Your courses are back",
+      body: `We restored ${restored.length} course(s) you bought on our old website.`,
+      data: { screen: "my_learning" },
+    });
+  }
+
   res.status(200).json({
     status: "ok",
     message: `Restored access to ${restored.length} course(s)`,

@@ -24,6 +24,7 @@ const announcementRouter = require("./routes/announcement.routes");
 const certRouter = require("./routes/cert.routes");
 const chatRouter = require("./routes/chat.routes");
 const quizRouter = require("./routes/quiz.routes");
+const notificationRouter = require("./routes/notification.routes");
 const referralRouter = require("./routes/referral.routes");
 const { optionalAuth } = require("./middleware/auth");
 const { CourseSections } = require("./controllers/discover.controller");
@@ -103,6 +104,7 @@ app.use("/api/payment", paymentRouter);
 app.use("/api/certificates", certRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/quiz", quizRouter);
+app.use("/api/notifications", notificationRouter);
 app.use("/api/referrals", referralRouter);
 // Home screen rows. Public; signed-in students get personal recommendations.
 app.get("/api/course-sections", optionalAuth, CourseSections);

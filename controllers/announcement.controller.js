@@ -339,6 +339,15 @@ module.exports.PublishAnnouncement = catchAsync(async (req, res, next) => {
     return next(new AppError("Failed to publish announcement"));
   });
 
+  // Publishing is when students should hear about it.
+  const a = docSnapshot.data() || {};
+  await require("./notification.controller").broadcast({
+    type: "news",
+    title: a.title || "New announcement",
+    body: String(a.description || "").slice(0, 300),
+    data: { screen: "notifications", announcementId: id },
+  });
+
   res.status(200).json({
     status: "ok",
     message: "Announcement published successfully",

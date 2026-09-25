@@ -127,6 +127,16 @@ async function fulfil(reference, paid) {
   await batch.commit();
   await creditReferral(payment.uid);
 
+  const titles = courseDocs.filter((d) => d.exists).map((d) => d.data().title).filter(Boolean);
+  await require("./notification.controller").notify(payment.uid, {
+    type: "account",
+    title: "Payment confirmed",
+    body: titles.length === 1
+      ? `${titles[0]} is unlocked. Enjoy learning!`
+      : `${titles.length} courses are unlocked. Enjoy learning!`,
+    data: { screen: "my_learning", reference },
+  });
+
   return { payment: { ...payment, status: "success" }, alreadyDone: false };
 }
 

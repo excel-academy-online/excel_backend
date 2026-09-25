@@ -69,6 +69,9 @@ const MOUNTS = [
   ["/api/payment", "../routes/purchase.routes"],
   ["/api/certificates", "../routes/cert.routes"],
   ["/api/chat", "../routes/chat.routes"],
+  ["/api/quiz", "../routes/quiz.routes"],
+  ["/api/referrals", "../routes/referral.routes"],
+  ["/api/notifications", "../routes/notification.routes"],
 ];
 
 const AUTH_NAMES = ["requireAuth", "requireRoleMiddleware", "requireSelfOrAdminMiddleware"];

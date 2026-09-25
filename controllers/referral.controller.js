@@ -92,11 +92,20 @@ exports.ClaimReferral = catchAsync(async (req, res) => {
 exports.creditReferral = async function creditReferral(refereeUid) {
   try {
     const ref = db.collection("referrals").doc(refereeUid);
-    await db.runTransaction(async (tx) => {
+    const rewarded = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      if (!snap.exists || snap.data().status !== "pending") return;
+      if (!snap.exists || snap.data().status !== "pending") return null;
       tx.set(ref, { status: "rewarded", rewardNaira: NAIRA_PER_INVITE, points: POINTS_PER_INVITE, rewardedAt: now() }, { merge: true });
+      return snap.data();
     });
+    if (rewarded) {
+      await require("./notification.controller").notify(rewarded.referrerUid, {
+        type: "account",
+        title: "You earned a referral reward",
+        body: `${rewarded.refereeName || "A friend you invited"} made their first purchase. +${POINTS_PER_INVITE} points (NGN ${NAIRA_PER_INVITE.toLocaleString("en-NG")}).`,
+        data: { screen: "referral" },
+      });
+    }
   } catch (err) {
     console.error("Referral credit failed for", refereeUid, err.message);
   }
@@ -206,6 +215,15 @@ exports.AdminDecidePayout = catchAsync(async (req, res) => {
   if (snap.data().status !== "pending") throw new AppError(`This payout is already ${snap.data().status}`, 409);
   const update = { status, decidedAt: now(), decidedBy: req.uid };
   await ref.set(update, { merge: true });
+  const p = snap.data();
+  await require("./notification.controller").notify(p.uid, {
+    type: "account",
+    title: status === "paid" ? "Withdrawal paid" : "Withdrawal declined",
+    body: status === "paid"
+      ? `NGN ${Number(p.amountNaira).toLocaleString("en-NG")} has been sent to your ${(p.bank || {}).bankName || "bank"} account.`
+      : "Your withdrawal request was declined and your points are back in your balance. Chat with us if you have questions.",
+    data: { screen: "referral" },
+  });
   res.status(200).json({ status: "ok", message: `Payout marked ${status}`, data: { id: ref.id, ...snap.data(), ...update } });
 });
 

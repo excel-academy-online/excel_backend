@@ -243,6 +243,13 @@ exports.SubmitResult = catchAsync(async (req, res) => {
     for (const d of theirs.docs) {
       if (d.data().uid !== other) continue;
       await d.ref.set({ opponentPoints: points, won: otherPoints > points, pending: false }, { merge: true });
+      // They finished first and may have left the game screen.
+      await require("./notification.controller").notify(other, {
+        type: "activities",
+        title: otherPoints > points ? "You won your match!" : otherPoints === points ? "Your match was a draw" : "Match result is in",
+        body: `${m.program}: you scored ${otherPoints}, ${name} scored ${points}.`,
+        data: { screen: "leaderboard" },
+      });
     }
   }
 
