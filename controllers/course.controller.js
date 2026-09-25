@@ -1827,6 +1827,14 @@ module.exports.GetCourseDetails = catchAsync(async (req, res, next) => {
   if (courseRepo.source === "firestore") {
     const owned = await ownsCourse(req.uid, courseId);
     courseDetails = legacyCourse(innerCourseId, { owned });
+    // Owners also get which lessons they've watched, so the app can tick them.
+    if (owned) {
+      const { db } = require("../firebaseadminvar");
+      const enrol = await db.collection("enrollments").doc(`${req.uid}_${courseId}`).get();
+      const progress = (enrol.exists && enrol.data().progress) || {};
+      courseDetails.completedModules = progress.completedModules || [];
+      courseDetails.progress = progress.percentage || 0;
+    }
   }
 
   res.status(200).json({
