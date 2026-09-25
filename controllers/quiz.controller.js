@@ -92,54 +92,112 @@ exports.GetQuestions = catchAsync(async (req, res) => {
 /* ---------------------------------------------------------- results */
 
 /**
+ * Grades [answers] ([{ id, choice }], choice = option index or null for
+ * "time up") against the real questions. The client never says how many it
+ * got right; the server works it out.
+ */
+async function grade(answers, matchQuestions) {
+  const list = Array.isArray(answers) ? answers.slice(0, MAX_COUNT) : [];
+  const seen = new Set();
+  const unique = list.filter((x) => x && x.id && !seen.has(String(x.id)) && seen.add(String(x.id)));
+
+  let byId;
+  if (matchQuestions) {
+    byId = Object.fromEntries(matchQuestions.map((q) => [String(q.id), q]));
+  } else {
+    const docs = unique.length
+      ? await db.getAll(...unique.map((x) => db.collection("gamification").doc(String(x.id))))
+      : [];
+    byId = Object.fromEntries(
+      docs.filter((d) => d.exists && Number(d.data().status) === 1).map((d) => [d.id, shapeQuestion(d)]).filter(([, q]) => q)
+    );
+  }
+
+  const graded = unique.filter((x) => byId[String(x.id)]);
+  const correct = graded.filter((x) => {
+    const q = byId[String(x.id)];
+    return Number.isInteger(x.choice) && q.correctOptions.includes(x.choice);
+  }).length;
+  return { total: graded.length, correct };
+}
+
+/**
  * POST /api/quiz/results
- * { program, correct, total, opponentType: "bot"|"real", opponentName?, opponentPoints?, matchId? }
- * Points are derived from `correct`, never taken from the client. For a live
- * match the opponent's score comes from the match record.
+ * { program, answers: [{ id, choice }], opponentType: "bot"|"real", opponentName?, opponentPoints?, matchId? }
+ *
+ * Points come from server-side grading. In a live match the result stays
+ * `pending` until both players have finished; the second submission settles
+ * both players' results, so nobody is told they won while their opponent is
+ * still playing.
  */
 exports.SubmitResult = catchAsync(async (req, res) => {
   const b = req.body || {};
-  const total = Math.min(MAX_COUNT, Math.max(0, Math.floor(Number(b.total) || 0)));
-  const correct = Math.min(total, Math.max(0, Math.floor(Number(b.correct) || 0)));
-  if (!b.program || !total) throw new AppError("program and total are required", 400);
-  const points = correct * POINTS_PER_CORRECT;
+  if (!b.program) throw new AppError("program is required", 400);
 
-  let opponentPoints = Math.min(total * POINTS_PER_CORRECT, Math.max(0, Math.floor(Number(b.opponentPoints) || 0)));
-  let opponentName = b.opponentName ? String(b.opponentName).slice(0, 60) : "Excel Bot";
-  const opponentType = b.opponentType === "real" ? "real" : "bot";
-
+  let match = null;
+  let matchRef = null;
   if (b.matchId) {
-    const ref = db.collection("quizMatches").doc(String(b.matchId));
-    const snap = await ref.get();
-    if (!snap.exists) throw new AppError("Match not found", 404);
-    const m = snap.data();
-    if (!(m.players || []).includes(req.uid)) throw new AppError("Match not found", 404);
-    const other = m.players.find((p) => p !== req.uid);
-    await ref.set({ scores: { [req.uid]: points }, finished: { [req.uid]: true } }, { merge: true });
-    if (other) {
-      opponentPoints = (m.scores || {})[other] || 0;
-      opponentName = (m.names || {})[other] || "Opponent";
-    }
-    const bothDone = other && (m.finished || {})[other];
-    if (bothDone) await ref.set({ status: "done" }, { merge: true });
+    matchRef = db.collection("quizMatches").doc(String(b.matchId));
+    const snap = await matchRef.get();
+    if (!snap.exists || !(snap.data().players || []).includes(req.uid)) throw new AppError("Match not found", 404);
+    match = snap.data();
+    if ((match.finished || {})[req.uid]) throw new AppError("You have already finished this match", 409);
   }
 
-  const result = {
+  const { total, correct } = await grade(b.answers, match ? match.questions || [] : null);
+  if (!total) throw new AppError("No valid answers to score", 400);
+  const points = correct * POINTS_PER_CORRECT;
+
+  const base = {
     uid: req.uid,
     name: displayName(req),
     program: String(b.program).slice(0, 40),
     points,
     correct,
     total,
-    opponentType,
-    opponentName,
-    opponentPoints,
-    won: points > opponentPoints,
-    matchId: b.matchId ? String(b.matchId) : null,
+    matchId: match ? String(b.matchId) : null,
     createdAt: new Date().toISOString(),
   };
+
+  // Against Excel Bot the bot's score is simulated on the phone, so it is
+  // capped to what was possible and taken as given.
+  if (!match) {
+    const opponentPoints = Math.min(total * POINTS_PER_CORRECT, Math.max(0, Math.floor(Number(b.opponentPoints) || 0)));
+    const result = { ...base, opponentType: "bot", opponentName: "Excel Bot", opponentPoints, won: points > opponentPoints, pending: false };
+    const ref = await db.collection("quizResults").add(result);
+    return res.status(201).json({ status: "ok", message: "Result saved", data: { id: ref.id, ...result } });
+  }
+
+  const other = (match.players || []).find((p) => p !== req.uid) || null;
+  const otherDone = !!(other && (match.finished || {})[other]);
+  const otherPoints = other ? (match.scores || {})[other] || 0 : 0;
+  const opponentName = other ? (match.names || {})[other] || "Opponent" : "Opponent";
+
+  await matchRef.set(
+    { scores: { [req.uid]: points }, finished: { [req.uid]: true }, ...(otherDone ? { status: "done" } : {}) },
+    { merge: true }
+  );
+
+  const result = {
+    ...base,
+    opponentType: "real",
+    opponentName,
+    opponentPoints: otherPoints,
+    won: otherDone ? points > otherPoints : false,
+    pending: !otherDone,
+  };
   const ref = await db.collection("quizResults").add(result);
-  res.status(201).json({ status: "ok", message: "Result saved", data: { id: ref.id, ...result } });
+
+  // Settle the opponent's result now that both scores are final.
+  if (otherDone) {
+    const theirs = await db.collection("quizResults").where("matchId", "==", String(b.matchId)).get();
+    for (const d of theirs.docs) {
+      if (d.data().uid !== other) continue;
+      await d.ref.set({ opponentPoints: points, won: otherPoints > points, pending: false }, { merge: true });
+    }
+  }
+
+  res.status(201).json({ status: "ok", message: otherDone ? "Result saved" : "Waiting for your opponent to finish", data: { id: ref.id, ...result } });
 });
 
 /* ------------------------------------------------------ leaderboard */
@@ -265,11 +323,11 @@ exports.GetMatch = catchAsync(async (req, res) => {
   res.status(200).json({ status: "ok", message: "Match fetched", data: shapeMatch(req.params.id, m, req.uid) });
 });
 
-/** POST /api/quiz/match/:id/score { correct } - live score while playing. */
+/** POST /api/quiz/match/:id/score { answers } - live score while playing, graded here. */
 exports.UpdateScore = catchAsync(async (req, res) => {
   const { ref, m } = await loadMatch(req);
-  const max = (m.questions || []).length;
-  const correct = Math.min(max, Math.max(0, Math.floor(Number((req.body || {}).correct) || 0)));
+  if ((m.finished || {})[req.uid]) throw new AppError("You have already finished this match", 409);
+  const { correct } = await grade((req.body || {}).answers, m.questions || []);
   await ref.set({ scores: { [req.uid]: correct * POINTS_PER_CORRECT } }, { merge: true });
   const fresh = (await ref.get()).data();
   res.status(200).json({ status: "ok", message: "Score updated", data: shapeMatch(req.params.id, fresh, req.uid) });
