@@ -188,13 +188,15 @@ async function getProgramsCourseLessonsFunction(id, next) {
   }
 }
 
+// Dashboard course list. Admin SDK (the client SDK on the server was slow),
+// cached briefly, and without the lesson trees - they made it ~600 KB and the
+// dashboard only shows the counts.
+let dashCoursesCache = null;
 async function getCourseFunction(next) {
-  const firestore = getFirestore();
+  if (dashCoursesCache && Date.now() - dashCoursesCache.at < 30 * 1000) return dashCoursesCache.data;
   try {
-    const colRef = collection(firestore, "courses");
-    const querry = query(colRef, where("status", "==", 1));
-
-    const snapshot = await getDocs(querry);
+    const { db } = require("../firebaseadminvar");
+    const snapshot = await db.collection("courses").where("status", "==", 1).get();
 
     if (snapshot.empty) {
       return false; // Return false if no documents are found
@@ -205,8 +207,10 @@ async function getCourseFunction(next) {
       const data = doc.data();
 
       // Add count properties for arrays
+      const { lesson, ...rest } = data;
       const processedCourse = {
-        ...data,
+        ...rest,
+        id: data.id || doc.id,
         faqCount: data.faq?.length || 0,
         lessonCount: data.lesson?.length || 0,
         quizCount: data.quiz?.length || 0,
@@ -217,6 +221,7 @@ async function getCourseFunction(next) {
       documents.push(processedCourse);
     });
 
+    dashCoursesCache = { at: Date.now(), data: documents };
     return documents;
   } catch (error) {
     return next(new AppError(error.message));
@@ -1774,7 +1779,6 @@ module.exports.getAllCourses = catchAsync(async (req, res, next) => {
   }
 
   const documents = await getCourseFunction(next);
-  console.log(documents, "documents");
 
   if (documents) {
     res.status(200).json({

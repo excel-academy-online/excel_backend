@@ -251,49 +251,26 @@ module.exports.getStudentDetail = catchAsync(async (req, res, next) => {
 });
 
 
-module.exports.GetAllStudents = catchAsync(async (req, res, next) => {
-    try {
-      const firestore = getFirestore();
-      const usersRef = collection(firestore, "users");
-  
-      // Calculate the timestamp for 48 hours ago
-      const currentDate = new Date();
-      const timestamp48HoursAgo = new Date(currentDate.getTime() - 48 * 60 * 60 * 1000);
-  
-      // Query to get all users with type 'student'
-      const q = query(usersRef, where("type", "==", "student"));
-      const querySnapshot = await getDocs(q);
-  
-      if (querySnapshot.empty) {
-        return next(new AppError("No students found.", 404));
-      }
-  
-      // Collect all student data and separate the most recent ones
-      const allUsers = [];
-      const mostRecentUsers = [];
-      
-      querySnapshot.forEach(doc => {
-        const userData = doc.data();
-        allUsers.push(userData);
-  
-        // Check if the user was created within the last 48 hours
-        const userCreationDate = new Date(userData.dateCreated);
-        if (userCreationDate >= timestamp48HoursAgo) {
-          mostRecentUsers.push(userData);
-        }
-      });
-  
-      res.status(200).json({
-        status: "success",
-        message: "Students fetched successfully!",
-        data: {
-          allUsers,
-          mostRecentUsers
-        }
-      });
-    } catch (error) {
-      console.error("Error fetching students:", error);
-      return next(new AppError("Error fetching students.", 500));
-    }
+// Only 7 of the 57 students had type "student" (accounts made in the new app
+// have none), so the list showed a fraction of them. A student is anyone who
+// isn't staff. Admin SDK, cached briefly: the dashboard asks several times.
+let studentsCache = null;
+module.exports.GetAllStudents = catchAsync(async (req, res) => {
+  const { db } = require("../firebaseadminvar");
+  if (!studentsCache || Date.now() - studentsCache.at > 30 * 1000) {
+    const snap = await db.collection("users").get();
+    studentsCache = { at: Date.now(), docs: snap.docs.map((d) => ({ ...d.data(), id: d.data().id || d.id })) };
+  }
+  const allUsers = studentsCache.docs.filter((u) => u.type !== "admin" && u.admin !== true);
+  const since = Date.now() - 48 * 60 * 60 * 1000;
+  const mostRecentUsers = allUsers.filter((u) => {
+    const t = Date.parse(u.dateCreated || u.datecreated || u.createdAt);
+    return Number.isFinite(t) && t >= since;
   });
+  res.status(200).json({
+    status: "success",
+    message: "Students fetched successfully!",
+    data: { allUsers, mostRecentUsers },
+  });
+});
 
