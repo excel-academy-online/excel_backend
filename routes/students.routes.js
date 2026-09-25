@@ -36,6 +36,6 @@ router.get("/achievements", requireAuth, sd.Achievements);
 // Student rosters and individual records are staff-only.
 router.get("/getStudents", ...requireAdmin, getStudents);
 router.get("/getAllStudents", ...requireAdmin, GetAllStudents);
-router.get("/getStudentDetail", ...requireAdmin, getStudentDetail);
+router.get("/getStudentDetail", ...requireAdmin, require("../controllers/adminTools.controller").StudentDetail);
 
 module.exports = router;

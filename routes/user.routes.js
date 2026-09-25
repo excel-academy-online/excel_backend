@@ -33,7 +33,7 @@ router.post(
 // Admin-only: enumerating users and enabling/disabling accounts.
 router.post("/toggleUserStatus", ...requireAdmin, toggleUserStatus);
 router.get("/all-users", ...requireAdmin, FetchAllUsers);
-router.get("/fetch-by-gender", ...requireAdmin, FetchUsersByGender);
+router.get("/fetch-by-gender", ...requireAdmin, require("../controllers/adminTools.controller").UsersByGender);
 
 router.get("/fetch-user/:id", requireAuth, requireSelfOrAdmin("id"), FetchUserDetails);
 

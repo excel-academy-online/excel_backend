@@ -22,6 +22,6 @@ router.post("/login", StrictLimiter, AdminLogin);
 router.post("/resetpassword", StrictLimiter, requireAuth, AdminChangePassword);
 router.post("/updateProfile", requireAuth, EditProfile);
 router.patch("/logout", requireAuth, AdminLogOut);
-router.get("/search", ...requireAdmin, AdminSearchEverything);
+router.get("/search", ...requireAdmin, require("../controllers/adminTools.controller").SearchEverything);
 
 module.exports = router;

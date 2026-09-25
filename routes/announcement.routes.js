@@ -18,4 +18,6 @@ router.delete("/announcements", ...requireAdmin, DeleteAnnouncement);
 
 router.get("/getAnnouncements", requireAuth, GetAnnouncements);
 
+router.delete("/announcements", ...requireAdmin, require("../controllers/adminTools.controller").DeleteAnnouncement);
+
 module.exports = router;
