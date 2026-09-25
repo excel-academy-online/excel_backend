@@ -109,8 +109,7 @@ exports.SetBookmarks = catchAsync(async (req, res) => {
 
 /* --------------------------------------------------------- progress */
 
-const moduleIdsOf = (course) =>
-  (course.lesson || []).flatMap((s) => (s.content || []).map((c) => String(c.id)));
+const { courseProgress, videoIds } = require("../utils/courseProgress");
 
 /**
  * POST /api/students/progress { courseId, moduleId }
@@ -125,22 +124,26 @@ exports.MarkLessonComplete = catchAsync(async (req, res) => {
   if (!enrol.exists) throw new AppError("You are not enrolled in this course", 403);
   if (!course.exists) throw new AppError("Course not found", 404);
 
-  const all = moduleIdsOf(course.data());
+  const all = videoIds(course.data());
   if (!all.includes(String(moduleId))) throw new AppError("Lesson not found in this course", 404);
 
   const prev = enrol.data().progress || {};
   const done = [...new Set([...(prev.completedModules || []), String(moduleId)])].filter((id) => all.includes(id));
-  const percentage = all.length ? Math.round((done.length / all.length) * 100) : 0;
+  const p = courseProgress(course.data(), done);
   const progress = {
     ...prev,
     completedModules: done,
-    lessons_completed: done.length,
-    total_lessons: all.length,
-    percentage,
-    ...(percentage === 100 && !prev.completedAt ? { completedAt: now() } : {}),
+    lessons_completed: p.completed,
+    total_lessons: p.total,
+    percentage: p.percentage,
+    ...(p.percentage === 100 && !prev.completedAt ? { completedAt: now() } : {}),
   };
   await enrolRef.set({ progress }, { merge: true });
-  res.status(200).json({ status: "ok", message: "Progress saved", data: { percentage, lessons_completed: done.length, total_lessons: all.length } });
+  res.status(200).json({
+    status: "ok",
+    message: "Progress saved",
+    data: { percentage: p.percentage, lessons_completed: p.completed, total_lessons: p.total, completedModules: done },
+  });
 });
 
 /* ------------------------------------------------- orders & receipts */
@@ -216,9 +219,12 @@ exports.Achievements = catchAsync(async (req, res) => {
     db.collection("quizResults").where("uid", "==", req.uid).get(),
   ]);
 
-  const finishedIds = enrolSnap.docs
-    .map((d) => d.data())
-    .filter((e) => ((e.progress || {}).percentage || 0) >= 100)
+  const enrolments = enrolSnap.docs.map((d) => d.data());
+  const courseDocs = enrolments.length
+    ? await db.getAll(...enrolments.map((e) => db.collection("courses").doc(String(e.course_id))))
+    : [];
+  const finishedIds = enrolments
+    .filter((e, i) => courseDocs[i].exists && courseProgress(courseDocs[i].data(), (e.progress || {}).completedModules).percentage === 100)
     .map((e) => e.course_id);
   const titles = await titlesFor(finishedIds);
 

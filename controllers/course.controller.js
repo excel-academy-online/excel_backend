@@ -1832,8 +1832,11 @@ module.exports.GetCourseDetails = catchAsync(async (req, res, next) => {
       const { db } = require("../firebaseadminvar");
       const enrol = await db.collection("enrollments").doc(`${req.uid}_${courseId}`).get();
       const progress = (enrol.exists && enrol.data().progress) || {};
+      const p = require("../utils/courseProgress").courseProgress(innerCourseId, progress.completedModules);
       courseDetails.completedModules = progress.completedModules || [];
-      courseDetails.progress = progress.percentage || 0;
+      courseDetails.progress = p.percentage;
+      courseDetails.lessonsCompleted = p.completed;
+      courseDetails.videoCount = p.total;
     }
   }
 
@@ -1845,21 +1848,41 @@ module.exports.GetCourseDetails = catchAsync(async (req, res, next) => {
   });
 });
 
-module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
-  let AllCourses = await courseRepo.findAll();
+// Every app launch asks for the catalogue. Reading all 128 course documents
+// from Firestore each time made it slow; the catalogue changes rarely, so
+// it's kept for a minute.
+const CATALOGUE_TTL_MS = 60 * 1000;
+let catalogueCache = null;
+async function allCoursesCached() {
+  if (catalogueCache && Date.now() - catalogueCache.at < CATALOGUE_TTL_MS) return catalogueCache.data;
+  const data = await courseRepo.findAll();
+  catalogueCache = { at: Date.now(), data };
+  return data;
+}
+module.exports._resetCatalogueCache = () => { catalogueCache = null; };
 
-  if (courseRepo.source === "firestore") {
+module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
+  if (courseRepo.source !== "firestore") {
+    const AllCourses = await courseRepo.findAll();
+    return res.status(202).json({ status: "ok", success: true, message: "All Courses fetched succesfully", AllCourses });
+  }
+  let AllCourses = await allCoursesCached();
+
+  {
     // Only published courses reach students, in the shape the app parses.
     // Video URLs are withheld here even for owners: the list never plays
     // anything, and one call carrying every URL would be a free download list.
-    const owned = new Set(await ownedCourseIds(req.uid));
+    const [ownedIds, ratings] = await Promise.all([
+      ownedCourseIds(req.uid),
+      require("./review.controller").ratingsByCourse(),
+    ]);
+    const owned = new Set(ownedIds);
     AllCourses = AllCourses.filter((c) => Number(c.status) === 1).map((c) =>
       // The catalogue only needs a summary: lessons come with course details.
       // Sending all 128 lesson trees made this ~600 KB on every app launch.
       legacyCourse(c, { owned: false, withLessons: req.query.lessons === "1" })
     ).map((c) => ({ ...c, owned: owned.has(c._id) }));
     // Real average ratings (null until a course has reviews).
-    const ratings = await require("./review.controller").ratingsByCourse();
     AllCourses = AllCourses.map((c) => ({
       ...c,
       rating: (ratings[c._id] || {}).rating ?? null,

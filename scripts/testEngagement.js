@@ -121,7 +121,11 @@ const DAY = 86400000;
 function seed() {
   store = {};
   store.courses = {
-    c1: { title: "Audit", status: 1, level: "ICAN", datecreated: "2024-01-01", lesson: [{ id: "s1", content: [{ id: "m1" }, { id: "m2" }] }] },
+    c1: { title: "Audit", status: 1, level: "ICAN", datecreated: "2024-01-01", lesson: [{ id: "s1", content: [
+      { id: "m1", medias: [{ type: "video", url: "https://v/1.mp4" }] },
+      { id: "m2", medias: [{ type: "video", url: "https://v/2.mp4" }] },
+      { id: "notes", medias: [] }, // nothing to watch: must not block 100%
+    ] }] },
     c2: { title: "Tax", status: 1, level: "ICAN", datecreated: "2025-06-01", lesson: [] },
     c3: { title: "Draft", status: 0, lesson: [] },
   };
@@ -188,6 +192,24 @@ function seed() {
     const a = ok(await call(sd.Achievements, { uid: "u1" }));
     assert.strictEqual(a.body.data.courses.length, 1);
     assert.match(a.body.data.courses[0].text, /Completed Audit/);
+  });
+
+  await test("progress rounds down, but any progress shows at least 1%", () => {
+    const { courseProgress } = require(path.join(__dirname, "..", "utils", "courseProgress"));
+    const course = { lesson: [{ content: Array.from({ length: 101 }, (_, i) => ({ id: "v" + i, medias: [{ type: "video", url: "u" }] })) }] };
+    assert.strictEqual(courseProgress(course, []).percentage, 0);
+    assert.strictEqual(courseProgress(course, ["v0"]).percentage, 1);
+    assert.strictEqual(courseProgress(course, Array.from({ length: 100 }, (_, i) => "v" + i)).percentage, 99);
+    assert.strictEqual(courseProgress(course, Array.from({ length: 101 }, (_, i) => "v" + i)).percentage, 100);
+    assert.strictEqual(courseProgress(course, ["not-in-course"]).percentage, 0);
+  });
+  await test("My board shows live progress from watched videos", async () => {
+    const mc = ctl("myCourses.controller.js");
+    const r = await call(mc.MyCourses, { uid: "u1" });
+    const body = r.body || {};
+    const c1 = (body.AllCourses || []).find((c) => c._id === "c1");
+    assert(c1, "c1 listed");
+    assert.deepStrictEqual(c1.progress, { percentage: 100, lessons_completed: 2, total_lessons: 2 });
   });
 
   /* orders & receipts */

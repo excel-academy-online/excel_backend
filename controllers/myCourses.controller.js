@@ -7,6 +7,7 @@
  */
 const { db } = require("../firebaseadminvar");
 const catchAsync = require("../utils/errors/catchAsync");
+const { courseProgress } = require("../utils/courseProgress");
 const { legacyCourse } = require("../utils/legacyCourseShape");
 
 module.exports.MyCourses = catchAsync(async (req, res) => {
@@ -26,10 +27,12 @@ module.exports.MyCourses = catchAsync(async (req, res) => {
     .filter((d) => d.exists)
     .map((d) => {
       const e = byCourse.get(d.id);
+      // Computed from the watched videos every time, so it can't go stale.
+      const p = courseProgress(d.data(), (e.progress || {}).completedModules);
       return {
         ...legacyCourse({ _id: d.id, ...d.data() }, { owned: true, withLessons: false }),
         enrolledAt: e.enrollment_date || null,
-        progress: e.progress || null,
+        progress: { percentage: p.percentage, lessons_completed: p.completed, total_lessons: p.total },
       };
     });
 
