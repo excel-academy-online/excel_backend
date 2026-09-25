@@ -67,30 +67,18 @@ function getCryptoParams() {
   return { key, iv };
 }
 
+// Published programmes. Admin SDK + 30s cache (was ~3s per call via the
+// client SDK), and no longer crashes when there are none (it called an
+// undefined `res`).
+let programsCache = null;
 async function getProgramsFunction(next) {
-  const firestore = getFirestore();
+  if (programsCache && Date.now() - programsCache.at < 30 * 1000) return programsCache.data;
   try {
-    const colRef = collection(firestore, "programs");
-    const querry = query(colRef, where("status", "==", 1));
-
-    const snapshot = await getDocs(querry);
-
-    if (snapshot.empty) {
-      console.log(`You havent uploaded any program`);
-      res.status(200).json({
-        status: "ok",
-        message: "Programs not uploaded yet",
-        data: {},
-      });
-      return null; // Or handle the case where no document is found
-    }
-
-    const documents = [];
-    snapshot.forEach((doc) => {
-      documents.push(doc.data());
-    });
-
-    return documents;
+    const { db } = require("../firebaseadminvar");
+    const snap = await db.collection("programs").where("status", "==", 1).get();
+    const data = snap.docs.map((d) => ({ ...d.data(), id: d.data().id || d.id }));
+    programsCache = { at: Date.now(), data };
+    return data;
   } catch (error) {
     console.error(error.message, error);
     return next(new AppError(error.message));
@@ -1506,7 +1494,6 @@ module.exports.getAllPrograms = catchAsync(async (req, res, next) => {
   }
 
   const documents = await getProgramsFunction(next);
-  console.log(documents, "documents");
 
   res.status(200).json({
     status: "ok",
