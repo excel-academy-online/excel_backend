@@ -871,46 +871,6 @@ module.exports.createMultipleGamificationQst = catchAsync(
   }
 );
 
-module.exports.GetAllActiveGames = catchAsync(async (req, res, next) => {
-  const querySnapshot = await getAllActiveGames(next, 1);
-  if (querySnapshot.empty) {
-    return next(new AppError("No active Gamification", 404));
-  }
-  res.status(200).json({
-    status: "ok",
-    message: "Game questions gotten successfully",
-    data: querySnapshot,
-  });
-});
-module.exports.GetAllNonActiveGames = catchAsync(async (req, res, next) => {
-  const querySnapshot = await getAllActiveGames(next, 0);
-  if (querySnapshot.empty) {
-    return next(new AppError("No data found", 404));
-  }
-  res.status(200).json({
-    status: "ok",
-    message: "Non active questions gotten successfully",
-    data: querySnapshot,
-  });
-});
-
-module.exports.GetGamesByProgramId = catchAsync(async (req, res, next) => {
-  let { program_id } = req.query;
-
-  if (!program_id) {
-    return next(new AppError("program ID is required", 403));
-  }
-  const querySnapshot = await getGamesByProgramId(program_id, next);
-  if (querySnapshot.empty) {
-    return next(new AppError("Course does not exists", 404));
-  }
-  res.status(200).json({
-    status: "ok",
-    message: "Game questions gotten successfully",
-    data: querySnapshot,
-  });
-});
-
 module.exports.SearchCourse = catchAsync(async (req, res, next) => {
   const { searchTerm } = req.query;
   if (searchTerm == "" || undefined) {
@@ -977,145 +937,6 @@ module.exports.GetSinglePaginatedGames = catchAsync(async (req, res, next) => {
   });
 });
 
-module.exports.searchGamification = catchAsync(async (req, res, next) => {
-  const { question, course_id, session_id, status } = req.query;
-
-  // Initialize Firestore reference
-  const firestore = getFirestore();
-  const gamificationRef = collection(firestore, "gamification");
-
-  // Build Firestore query dynamically based on available search params
-  let q = gamificationRef;
-
-  // Add filters based on provided query parameters
-  if (question) {
-    q = query(
-      q,
-      where("question", ">=", question),
-      where("question", "<=", question + "\uf8ff")
-    );
-  }
-
-  if (course_id) {
-    q = query(q, where("course_id", "==", course_id));
-  }
-
-  if (session_id) {
-    q = query(q, where("session_id", "==", session_id));
-  }
-
-  if (status) {
-    q = query(q, where("status", "==", parseInt(status)));
-  }
-
-  try {
-    // Execute query
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return res.status(404).json({
-        status: "fail",
-        message: "No gamification content found based on your search.",
-      });
-    }
-
-    // Collect search results
-    const searchResults = [];
-    querySnapshot.forEach((doc) => {
-      searchResults.push(doc.data());
-    });
-
-    res.status(200).json({
-      status: "ok",
-      message: "Search results retrieved successfully",
-      data: searchResults,
-    });
-  } catch (error) {
-    console.error("Error fetching search results:", error);
-    return next(new AppError("Error fetching search results.", 500));
-  }
-});
-
-module.exports.GetPaginatedGames = catchAsync(async (req, res, next) => {
-  const { pageSize = 10, lastVisible } = req.query; // Get the lastVisible and pageSize from query
-
-  const querySnapshot = await getAllActiveGames(
-    next,
-    parseInt(pageSize),
-    lastVisible
-  );
-
-  if (!querySnapshot || querySnapshot.data.length === 0) {
-    return next(new AppError("No active games found.", 404));
-  }
-
-  res.status(200).json({
-    status: "ok",
-    message: "Game questions fetched successfully",
-    data: querySnapshot.data,
-    lastVisible: querySnapshot.lastVisible, // Return lastVisible for the next pagination request
-  });
-});
-
-async function getAllActiveGames(next, pageSize, lastVisible) {
-  try {
-    const firestore = getFirestore();
-    const gamesRef = collection(firestore, "gamification");
-
-    // Prepare the query with pagination and sorting by dateCreated
-    let q = query(
-      gamesRef,
-      where("status", "==", 1),
-      // orderBy("dateCreated", "desc"),
-      limit(pageSize)
-    );
-
-    // Handle lastVisible only if it's passed
-    if (lastVisible) {
-      const lastVisibleDoc = await getDoc(
-        doc(firestore, "gamification", lastVisible)
-      );
-      if (lastVisibleDoc.exists()) {
-        q = query(
-          gamesRef,
-          where("status", "==", 1),
-          // orderBy("dateCreated", "desc"),
-          startAfter(lastVisibleDoc), // Add pagination using the last document
-          limit(pageSize)
-        );
-      }
-    }
-
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return { data: [], lastVisible: null };
-    }
-
-    const activeGames = [];
-    const courseIds = new Set(); // To keep track of unique course IDs for batch fetching course names
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      activeGames.push(data);
-      courseIds.add(data.course_id);
-    });
-
-    // Fetch course names using course IDs
-    const courseNames = await getCoursesByIds(Array.from(courseIds));
-
-    // Group games by course_id and calculate total score for each group
-    const groupedData = groupByCourseId(activeGames, courseNames);
-
-    // Get the last document for pagination
-    const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1].id;
-
-    return { data: groupedData, lastVisible: lastVisibleDoc };
-  } catch (error) {
-    console.error("Error fetching paginated games:", error);
-    return next(new AppError("Error fetching paginated games.", 500));
-  }
-}
-
 function groupByCourseId(games, courseNames) {
   const grouped = {};
 
@@ -1161,3 +982,67 @@ async function getCoursesByIds(courseIds) {
   await Promise.all(promises);
   return courseNames;
 }
+
+/* ------------------------------------------------------------------ */
+/* Read endpoints (Admin SDK).
+ *
+ * These used the client SDK on the server (subject to security rules and
+ * composite indexes), and a second function named getAllActiveGames silently
+ * replaced the first, so "all active" asked for 1 item and "inactive" for 0 -
+ * which Firestore rejects, hence the dashboard's 500. The question bank is
+ * small (a few hundred docs), so filtering and sorting happen in memory: no
+ * indexes to create and nothing to break.
+ */
+const { db: adminDb } = require("../firebaseadminvar");
+
+async function allQuestions() {
+  const snap = await adminDb.collection("gamification").get();
+  return snap.docs
+    .map((d) => ({ ...d.data(), id: d.id }))
+    .sort((a, b) => String(b.dateCreated || "").localeCompare(String(a.dateCreated || "")));
+}
+
+const byStatus = (status) => catchAsync(async (req, res) => {
+  const data = (await allQuestions()).filter((q) => Number(q.status) === status);
+  res.status(200).json({
+    status: "ok",
+    message: status === 1 ? "Game questions gotten successfully" : "Non active questions gotten successfully",
+    data,
+  });
+});
+module.exports.GetAllActiveGames = byStatus(1);
+module.exports.GetAllNonActiveGames = byStatus(0);
+
+module.exports.GetGamesByProgramId = catchAsync(async (req, res, next) => {
+  const { program_id } = req.query;
+  if (!program_id) return next(new AppError("program ID is required", 400));
+  const data = (await allQuestions()).filter((q) => q.program_id === program_id || q.program_code === program_id);
+  res.status(200).json({ status: "ok", message: "Game questions gotten successfully", data });
+});
+
+module.exports.searchGamification = catchAsync(async (req, res) => {
+  const { question, course_id, session_id, status, program } = req.query;
+  const needle = String(question || "").toLowerCase();
+  const data = (await allQuestions()).filter((q) =>
+    (!needle || String(q.question || "").toLowerCase().includes(needle)) &&
+    (!course_id || q.course_id === course_id) &&
+    (!session_id || q.session_id === session_id) &&
+    (status === undefined || status === "" || Number(q.status) === Number(status)) &&
+    (!program || q.program_id === program || q.program_code === String(program).toUpperCase())
+  );
+  res.status(200).json({ status: "ok", message: "Search results retrieved successfully", data });
+});
+
+/** GET /getAllActiveGamesPaginated?pageSize=10&lastVisible=<id> */
+module.exports.GetPaginatedGames = catchAsync(async (req, res) => {
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
+  const active = (await allQuestions()).filter((q) => Number(q.status) === 1);
+  const from = req.query.lastVisible ? active.findIndex((q) => q.id === req.query.lastVisible) + 1 : 0;
+  const data = active.slice(from, from + pageSize);
+  res.status(200).json({
+    status: "ok",
+    message: "Game questions fetched successfully",
+    data,
+    lastVisible: from + pageSize < active.length && data.length ? data[data.length - 1].id : null,
+  });
+});

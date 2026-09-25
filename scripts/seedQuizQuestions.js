@@ -159,6 +159,111 @@ const BANK = {
   ],
 };
 
+
+// Harder, exam-style questions (13-20 per programme).
+const MORE = {
+  ICAN: [
+    ["IAS 36 deals with:", "Impairment of assets", "Income taxes", "Inventories", "Investment property"],
+    ["Under IAS 36, recoverable amount is the higher of fair value less costs of disposal and:", "Value in use", "Carrying amount", "Historical cost", "Replacement cost"],
+    ["Under IAS 38, research expenditure is:", "Expensed as incurred", "Capitalised as an intangible asset", "Added to goodwill", "Deferred until the product is sold"],
+    ["A customer's bankruptcy discovered after year-end, relating to a debt owed at year-end, is:", "An adjusting event", "A non-adjusting event", "A contingent asset", "A change in accounting policy"],
+    ["Under IFRS 10, an investor controls an investee when it has power, exposure to variable returns and:", "The ability to use its power to affect those returns", "More than 20% of the shares", "A seat on the audit committee", "The same year-end"],
+    ["Audit risk is the product of inherent risk, control risk and:", "Detection risk", "Business risk", "Fraud risk", "Sampling risk only"],
+    ["Under IAS 12, deferred tax arises from:", "Temporary differences", "Permanent differences only", "Dividends paid", "Share issues"],
+    ["Under IFRS 9, a financial asset's classification depends on the business model and:", "Its contractual cash flow characteristics", "Its purchase date", "The auditor's opinion", "The currency it is held in"],
+  ],
+  ACCA: [
+    ["Under IAS 23, borrowing costs directly attributable to a qualifying asset are:", "Capitalised", "Always expensed", "Charged to equity", "Ignored"],
+    ["IFRS 13 defines fair value as:", "An exit price between market participants at the measurement date", "The original cost of the asset", "The entity's own estimate of future cash flows", "The price paid to acquire the asset"],
+    ["An associate is usually an entity over which the investor has:", "Significant influence (typically 20-50% of votes)", "Full control", "No influence at all", "Joint control with one other party"],
+    ["Associates are accounted for in group accounts using:", "The equity method", "Full consolidation", "Proportionate consolidation", "Cost less impairment only"],
+    ["A change in accounting policy under IAS 8 is normally applied:", "Retrospectively", "Prospectively only", "Only to next year", "Only if the auditor agrees"],
+    ["Inventory holding period (days) is:", "Inventory / cost of sales x 365", "Sales / inventory x 365", "Receivables / sales x 365", "Payables / purchases x 365"],
+    ["WACC is commonly used as:", "The discount rate for appraising projects", "A measure of liquidity", "The tax rate", "The dividend payout ratio"],
+    ["Professional scepticism means an auditor has:", "A questioning mind and critically assesses evidence", "Distrust of all management", "No need for evidence", "An opinion before the audit starts"],
+  ],
+  CITN: [
+    ["The incidence of a tax refers to:", "Where the final burden of the tax falls", "The date the tax is paid", "The tax rate", "The penalty for late payment"],
+    ["A regressive tax takes:", "A larger share of income from low earners", "A larger share of income from high earners", "The same share from everyone", "Nothing from low earners"],
+    ["PAYE is tax on employment income that is:", "Deducted by the employer from salary", "Paid by customers", "Charged on imports", "Paid only at year-end by the employee"],
+    ["Capital gains tax is charged on:", "Gains from disposing of chargeable assets", "Salaries", "Imported goods", "Bank deposits"],
+    ["When a taxpayer fails to file a return, the tax authority may raise:", "A best-of-judgement assessment", "A tax refund", "A capital allowance", "A double taxation relief"],
+    ["A taxpayer who disagrees with an assessment should first:", "File a notice of objection with the tax authority", "Stop paying all taxes", "Go straight to the Supreme Court", "Ignore it"],
+    ["The tax base is:", "The item or activity on which tax is levied", "The tax office building", "The tax rate", "The total government budget"],
+    ["Tax expenditure refers to:", "Revenue given up through reliefs and exemptions", "Money spent collecting tax", "Salaries of tax officials", "Tax refunds paid late"],
+  ],
+  CIMA: [
+    ["A relevant cost is:", "A future cash flow that differs between the alternatives", "Any cost already incurred", "A fixed overhead absorbed into products", "Depreciation"],
+    ["In throughput accounting, throughput is:", "Sales minus direct material costs", "Sales minus all costs", "Labour plus overheads", "Profit before tax"],
+    ["Target cost equals:", "Target price minus target profit", "Actual cost plus mark-up", "Standard cost minus variances", "Market price plus profit"],
+    ["The materials price variance is:", "(Standard price - actual price) x actual quantity", "(Standard quantity - actual quantity) x standard price", "Actual cost - budgeted cost", "Standard cost x actual output"],
+    ["The economic order quantity balances:", "Ordering costs and holding costs", "Sales and purchases", "Labour and overheads", "Fixed and variable costs"],
+    ["Kaizen costing aims for:", "Continuous small cost reductions", "One large cost cut", "Higher selling prices", "Longer production runs only"],
+    ["Life-cycle costing tracks costs:", "Over the product's whole life", "For one month only", "For fixed costs only", "After the product is withdrawn"],
+    ["A good transfer pricing system should encourage:", "Goal congruence", "Divisions to compete destructively", "Maximum tax payments", "Ignoring group profit"],
+  ],
+  CIS: [
+    ["A share with a beta greater than 1 is:", "More volatile than the market", "Risk-free", "Less volatile than the market", "Unaffected by the market"],
+    ["A bonus issue:", "Gives free shares from reserves and raises no cash", "Raises new cash from investors", "Pays a cash dividend", "Reduces the number of shares"],
+    ["Market capitalisation equals:", "Share price x number of shares in issue", "Total assets - liabilities", "Earnings x dividend", "Revenue x profit margin"],
+    ["A stock split:", "Increases the number of shares and lowers the price per share proportionally", "Increases the company's value", "Is a type of bond", "Cancels existing shares"],
+    ["A bond's coupon rate is:", "The annual interest as a percentage of face value", "The bond's market price", "The yield to maturity", "The inflation rate"],
+    ["Short selling means:", "Selling borrowed securities hoping to buy them back cheaper", "Selling shares you have held briefly", "Buying shares on margin", "Selling at a loss"],
+    ["A limit order executes:", "Only at the specified price or better", "Immediately at any price", "Only at market close", "Only on bonds"],
+    ["A mutual fund is:", "A pool of investors' money managed professionally", "A type of bank loan", "A government bond", "An insurance policy"],
+  ],
+  ANAN: [
+    ["The reducing balance method charges depreciation as:", "A fixed percentage of the carrying amount", "The same amount each year", "A percentage of sales", "The asset's market value"],
+    ["Writing off an irrecoverable debt is recorded as:", "Debit irrecoverable debts expense, credit receivables", "Debit receivables, credit sales", "Debit cash, credit receivables", "Debit sales, credit expense"],
+    ["A receivables ledger control account is:", "A summary of all individual customer accounts", "A bank account", "A list of suppliers", "A fixed asset register"],
+    ["Without a partnership agreement, profits are normally shared:", "Equally", "By capital contributed", "By hours worked", "By age of partners"],
+    ["A receipts and payments account is usually prepared by:", "Clubs and not-for-profit organisations", "Listed companies", "Banks only", "Government ministries only"],
+    ["The capital of a not-for-profit organisation is called:", "The accumulated fund", "Share capital", "Retained earnings", "Goodwill"],
+    ["With incomplete records, opening capital is found using:", "A statement of affairs", "A cash flow statement", "A bank reconciliation", "A trial balance"],
+    ["A contra entry offsets:", "A customer's balance against the same party's supplier balance", "Cash against bank", "Sales against purchases", "Assets against capital"],
+  ],
+  CIBN: [
+    ["The lender of last resort to banks is:", "The central bank", "The stock exchange", "The largest commercial bank", "The Ministry of Finance"],
+    ["The capital adequacy ratio compares a bank's capital to its:", "Risk-weighted assets", "Total deposits", "Number of branches", "Annual profit"],
+    ["Collateral is:", "An asset pledged to secure a loan", "A type of deposit account", "The interest rate", "A bank's licence"],
+    ["An overdraft allows a customer to:", "Withdraw more than their balance, up to a limit", "Earn higher interest", "Avoid all bank charges", "Buy foreign currency"],
+    ["A letter of credit is mainly used in:", "International trade", "Personal savings", "Mortgage lending", "Payroll"],
+    ["Credit risk is the risk that:", "A borrower fails to repay", "Interest rates rise", "A branch closes", "The exchange rate falls"],
+    ["The interbank market is where:", "Banks lend to each other short term", "Customers open accounts", "Shares are listed", "Tax is paid"],
+    ["In Nigeria, the BVN is:", "A unique biometric identity number for bank customers", "A bank's licence number", "A type of loan", "A foreign exchange rate"],
+  ],
+  CFA: [
+    ["A put option gives its holder the right to:", "Sell the asset at the strike price", "Buy the asset at the strike price", "Receive coupons", "Vote at meetings"],
+    ["A bond trades at a premium when its coupon rate is:", "Higher than its yield to maturity", "Lower than its yield to maturity", "Equal to zero", "Equal to inflation"],
+    ["Yield to maturity is:", "The IRR of a bond's cash flows if held to maturity", "The coupon rate", "The current dividend yield", "The inflation rate"],
+    ["The Gordon growth model values a share as:", "D1 / (r - g)", "EPS x P/E", "D0 x g", "r / (D1 - g)"],
+    ["Systematic risk is measured by:", "Beta", "Standard deviation of one stock only", "The P/E ratio", "Dividend yield"],
+    ["Compared with the arithmetic mean return, the geometric mean return is:", "Less than or equal to it", "Always greater", "Always equal", "Unrelated"],
+    ["Convexity improves the estimate of a bond's price change from:", "Duration alone", "The coupon", "Credit ratings", "Dividends"],
+    ["Holding period return equals:", "(Ending value - beginning value + income) / beginning value", "Income / ending value", "Ending value / beginning value only", "Dividends x years held"],
+  ],
+  CPA: [
+    ["The US GAAP revenue standard is:", "ASC 606", "ASC 842", "IFRS 15 only", "SFAS 13"],
+    ["The US GAAP lease standard is:", "ASC 842", "ASC 606", "ASC 350", "ASC 740"],
+    ["FASB's single source of US GAAP is the:", "Accounting Standards Codification", "Internal Revenue Code", "Sarbanes-Oxley Act", "COSO framework"],
+    ["A US public company's annual report filed with the SEC is Form:", "10-K", "10-Q", "8-K", "S-1"],
+    ["A US public company's quarterly report is Form:", "10-Q", "10-K", "8-K", "W-2"],
+    ["SOX Section 404 requires management to report on:", "Internal control over financial reporting", "Tax planning", "Executive pay only", "Marketing budgets"],
+    ["Under US GAAP, bad debts are generally accounted for using:", "The allowance method", "Only the direct write-off method", "Cash basis", "No adjustment"],
+    ["An auditor must be independent of:", "The client being audited", "The accounting profession", "Other auditors", "The SEC"],
+  ],
+  CIPM: [
+    ["Job evaluation is used to determine:", "The relative worth of jobs for pay purposes", "Who to recruit", "Training needs only", "Holiday schedules"],
+    ["Succession planning prepares:", "Employees to fill key roles in future", "Payroll each month", "Office layouts", "Annual accounts"],
+    ["A grievance procedure lets employees:", "Formally raise complaints", "Set their own pay", "Hire staff", "Skip appraisals"],
+    ["The performance management cycle usually starts with:", "Setting objectives", "Dismissal", "Paying bonuses", "Exit interviews"],
+    ["Redundancy is dismissal because:", "The job is no longer needed", "Of gross misconduct", "The employee resigned", "Of poor attendance only"],
+    ["Vroom's expectancy theory links motivation to expectancy, instrumentality and:", "Valence", "Hygiene factors", "Theory X", "Physiological needs"],
+    ["Human resource planning forecasts:", "Future staffing needs", "Sales revenue", "Tax liabilities", "Share prices"],
+    ["Employee engagement describes:", "Employees' commitment and involvement in their work", "The number of staff", "Payroll accuracy", "Office attendance only"],
+  ],
+};
+
 // ICAN questions attach to the existing ICAN programme so the dashboard shows
 // them under it; the others are matched by programme code.
 const ICAN_PROGRAM_ID = "qXE8sh9l9ncmnb3kWF0z";
@@ -177,7 +282,8 @@ async function main() {
   const nowIso = new Date().toUTCString();
   const writes = [];
 
-  for (const [code, items] of Object.entries(BANK)) {
+  for (const [code, base] of Object.entries(BANK)) {
+    const items = [...base, ...(MORE[code] || [])];
     items.forEach((item, i) => {
       const { question, options, answerIndex } = arrange(item, i);
       const id = `seed-${code.toLowerCase()}-${String(i + 1).padStart(2, "0")}`;

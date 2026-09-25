@@ -14,6 +14,8 @@ require("dotenv").config();
 router.post("/uploadcourse", ...requireAdmin, upload.single("image"), uploadCourses);
 router.post("/addprogram", ...requireAdmin, upload.single("image"), uploadProgram);
 router.get("/getdashboarddata", ...requireAdmin, getDashboardData);
+// Platform-wide totals and revenue (getdashboarddata only counts the caller's own courses).
+router.get("/overview", ...requireAdmin, require("../controllers/overview.controller").Overview);
 router.get("/getcourses", ...requireAdmin, getCourses);
 router.get("/getPrograms", ...requireAdmin, getPrograms);
 
