@@ -23,6 +23,7 @@ const crypto = require("crypto");
 const axios = require("axios");
 const { db } = require("../firebaseadminvar");
 const catchAsync = require("../utils/errors/catchAsync");
+const { creditReferral } = require("./referral.controller");
 const AppError = require("../utils/errors/AppError");
 const { toInt } = require("../utils/legacyCourseShape");
 const { ownedCourseIds } = require("../utils/ownership");
@@ -124,6 +125,7 @@ async function fulfil(reference, paid) {
   );
   batch.set(ref, { status: "success", verifiedAt: now }, { merge: true });
   await batch.commit();
+  await creditReferral(payment.uid);
 
   return { payment: { ...payment, status: "success" }, alreadyDone: false };
 }
