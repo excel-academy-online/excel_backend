@@ -75,16 +75,17 @@ module.exports.CreateCommunityPost = catchAsync(async (req, res, next) => {
     allow_new_msg_request,
   } = req.body;
 
+  // allow_* are booleans: false is a valid answer, so only a missing value is
+  // an error (a falsy check rejected every group with replies switched off).
+  // program_id and description are optional in the dashboard form.
   if (
     !user_id ||
-    !program_id ||
     !category_type ||
-    !description ||
     !title ||
-    !allow_replies ||
-    !allow_new_msg_request
+    allow_replies === undefined ||
+    allow_new_msg_request === undefined
   ) {
-    return next(new AppError("All fields are required", 403));
+    return next(new AppError("Title, category and settings are required", 400));
   }
 
   const firestore = getFirestore();
@@ -113,7 +114,7 @@ module.exports.CreateCommunityPost = catchAsync(async (req, res, next) => {
     allow_replies,
     allow_new_msg_request,
     category_type,
-    program_id,
+    program_id: program_id || "",
     msg: [],
     request: [],
     removedStudent: [],
