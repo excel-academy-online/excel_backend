@@ -29,6 +29,7 @@ router.delete("/notes/:id", requireAuth, sd.DeleteNote);
 router.get("/bookmarks", requireAuth, sd.GetBookmarks);
 router.put("/bookmarks", requireAuth, sd.SetBookmarks);
 router.post("/progress", requireAuth, sd.MarkLessonComplete);
+router.post("/enroll-free", requireAuth, sd.EnrollFree);
 router.get("/orders", requireAuth, sd.MyOrders);
 router.get("/orders/:reference/receipt", requireAuth, sd.Receipt);
 router.get("/achievements", requireAuth, sd.Achievements);

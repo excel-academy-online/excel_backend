@@ -128,6 +128,7 @@ function seed() {
     ] }] },
     c2: { title: "Tax", status: 1, level: "ICAN", datecreated: "2025-06-01", lesson: [] },
     c3: { title: "Draft", status: 0, lesson: [] },
+    c4: { title: "Free Excel", status: 1, isFree: true, lesson: [] },
   };
   store.enrollments = { u1_c1: { student_id: "u1", course_id: "c1", enrollment_date: iso(), progress: { percentage: 0 } } };
   store.orders = {
@@ -210,6 +211,17 @@ function seed() {
     const c1 = (body.AllCourses || []).find((c) => c._id === "c1");
     assert(c1, "c1 listed");
     assert.deepStrictEqual(c1.progress, { percentage: 100, lessons_completed: 2, total_lessons: 2 });
+  });
+
+  await test("free courses enrol without payment; paid ones refuse", async () => {
+    const r1 = ok(await call(sd.EnrollFree, { uid: "u3", body: { courseId: "c4" } }));
+    assert.strictEqual(r1.code, 201);
+    assert(store.enrollments.u3_c4);
+    const again = ok(await call(sd.EnrollFree, { uid: "u3", body: { courseId: "c4" } }));
+    assert.strictEqual(again.code, 200);
+    fails(await call(sd.EnrollFree, { uid: "u3", body: { courseId: "c2" } }), 402);
+    fails(await call(sd.EnrollFree, { uid: "u3", body: { courseId: "c3" } }), 404);
+    delete store.enrollments.u3_c4;
   });
 
   /* orders & receipts */

@@ -115,6 +115,38 @@ const { courseProgress, videoIds } = require("../utils/courseProgress");
  * POST /api/students/progress { courseId, moduleId }
  * Marks one lesson video as watched. Only for courses the student owns.
  */
+/**
+ * POST /api/students/enroll-free { courseId }
+ * Enrols the student in a course marked free. Paid courses go through
+ * Paystack; this refuses them.
+ */
+exports.EnrollFree = catchAsync(async (req, res) => {
+  const courseId = String((req.body || {}).courseId || "");
+  if (!courseId) throw new AppError("courseId is required", 400);
+  const course = await db.collection("courses").doc(courseId).get();
+  if (!course.exists || Number(course.data().status) !== 1) throw new AppError("Course not found", 404);
+  if (course.data().isFree !== true) throw new AppError("This course is not free", 402);
+
+  const ref = db.collection("enrollments").doc(`${req.uid}_${courseId}`);
+  const existing = await ref.get();
+  if (!existing.exists) {
+    await ref.set({
+      course_id: courseId,
+      student_id: req.uid,
+      program_id: course.data().programId || "",
+      enrollment_date: now(),
+      status: "active",
+      progress: { completedModules: [] },
+      source: "free",
+    });
+  }
+  res.status(existing.exists ? 200 : 201).json({
+    status: "ok",
+    message: existing.exists ? "You are already enrolled" : "Enrolled",
+    data: { courseId },
+  });
+});
+
 exports.MarkLessonComplete = catchAsync(async (req, res) => {
   const { courseId, moduleId } = req.body || {};
   if (!courseId || !moduleId) throw new AppError("courseId and moduleId are required", 400);

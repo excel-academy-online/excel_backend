@@ -64,6 +64,8 @@ function legacyCourse(course, { owned = false, withLessons = true } = {}) {
     description: course.description || "",
     thumbnail: course.thumbnail || course.image || "",
     price: toInt(course.price),
+    // Free on the old website; enrolled via /students/enroll-free, no payment.
+    isFree: course.isFree === true,
     level: course.level || "",
     status: course.status,
     subscribers: [],
