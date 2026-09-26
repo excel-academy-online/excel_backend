@@ -99,6 +99,17 @@ module.exports.ClaimRecovery = catchAsync(async (req, res, next) => {
     );
   }
 
+  // The app calls this on every launch. Once restored to this account, do
+  // nothing: re-running rewrote the enrolments and sent "Your courses are
+  // back" every time the app opened.
+  if (record.claimedByUid === req.uid) {
+    return res.status(200).json({
+      status: "ok",
+      message: "Already restored",
+      data: { email, restored: [], alreadyClaimed: true },
+    });
+  }
+
   const courseDocs = await db.getAll(
     ...(record.courseIds || []).map((id) => db.collection(COURSES).doc(String(id)))
   );
