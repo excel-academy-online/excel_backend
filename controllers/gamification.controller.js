@@ -1046,3 +1046,89 @@ module.exports.GetPaginatedGames = catchAsync(async (req, res) => {
     lastVisible: from + pageSize < active.length && data.length ? data[data.length - 1].id : null,
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* Create / edit (Admin SDK).
+ *
+ * The originals demanded a session_id the dashboard never sends and parsed
+ * `options` as a JSON string, while the dashboard sends a real array and the
+ * correct answer as the option's text - so creating or editing a question
+ * from the dashboard always failed with "All fields are required". These
+ * accept what the dashboard sends and store the format the game reads:
+ * options [{option1: "..."}, ...] and questionAnswer "optionN".
+ */
+function normaliseQuestion(body) {
+  let options = body.options;
+  if (typeof options === "string") {
+    try { options = JSON.parse(options); } catch { options = null; }
+  }
+  if (!Array.isArray(options)) return { error: "Options must be a list" };
+  const texts = options
+    .map((o) => (typeof o === "string" ? o : Object.values(o || {})[0]))
+    .map((t) => String(t ?? "").trim())
+    .filter(Boolean);
+  if (texts.length < 2) return { error: "Add at least two options" };
+
+  const raw = body.questionAnswer;
+  let index = -1;
+  if (typeof raw === "number") index = raw;
+  else if (/^option\d+$/i.test(String(raw || ""))) index = Number(String(raw).replace(/\D/g, "")) - 1;
+  else index = texts.findIndex((t) => t.toLowerCase() === String(raw || "").trim().toLowerCase());
+  if (!(index >= 0 && index < texts.length)) return { error: "The correct answer must be one of the options" };
+
+  return {
+    options: texts.map((t, i) => ({ [`option${i + 1}`]: t })),
+    questionAnswer: `option${index + 1}`,
+  };
+}
+
+module.exports.createGamificationQst = catchAsync(async (req, res, next) => {
+  const b = req.body || {};
+  const question = String(b.question || "").trim();
+  if (!question || !b.program_id) return next(new AppError("Question and programme are required", 400));
+  const n = normaliseQuestion(b);
+  if (n.error) return next(new AppError(n.error, 400));
+
+  const dupe = await adminDb.collection("gamification").where("question", "==", question).limit(1).get();
+  if (!dupe.empty) return next(new AppError("Game question already exists", 409));
+
+  const ref = adminDb.collection("gamification").doc();
+  const now = new Date().toUTCString();
+  const data = {
+    id: ref.id,
+    question,
+    ...n,
+    program_id: String(b.program_id),
+    course_id: b.course_id ? String(b.course_id) : "",
+    session_id: b.session_id ? String(b.session_id) : "",
+    score: Number(b.score) || 8,
+    time: b.time || "",
+    media: [],
+    status: 1,
+    user_id: req.uid || b.user_id || "",
+    dateCreated: now,
+    dateModify: now,
+  };
+  await ref.set(data);
+  res.status(200).json({ status: "ok", message: "Question added successfully", data });
+});
+
+module.exports.editGamificationQst = catchAsync(async (req, res, next) => {
+  const b = req.body || {};
+  if (!b.gamification_id) return next(new AppError("gamification_id is required", 400));
+  const ref = adminDb.collection("gamification").doc(String(b.gamification_id));
+  if (!(await ref.get()).exists) return next(new AppError("Question not found", 404));
+
+  const update = { dateModify: new Date().toUTCString() };
+  if (b.question) update.question = String(b.question).trim();
+  if (b.options !== undefined || b.questionAnswer !== undefined) {
+    const n = normaliseQuestion(b);
+    if (n.error) return next(new AppError(n.error, 400));
+    Object.assign(update, n);
+  }
+  if (b.score !== undefined) update.score = Number(b.score) || 8;
+  if (b.program_id) update.program_id = String(b.program_id);
+  if (b.course_id !== undefined) update.course_id = String(b.course_id || "");
+  await ref.set(update, { merge: true });
+  res.status(200).json({ status: "ok", message: "Question updated successfully", data: { id: ref.id, ...update } });
+});
