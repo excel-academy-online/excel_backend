@@ -271,7 +271,11 @@ function seed() {
     assert.deepStrictEqual(cima.body.data.map((x) => x.id), ["g5"], "matched by programme code");
   });
   await test("each answer is checked and locked on the server", async () => {
+    Math.random = () => 0.99; // Excel Bot's plan: gets nothing right
     const s1 = ok(await call(quiz.StartSession, { uid: "u1", body: { program: "ICAN" } }));
+    Math.random = realRandom;
+    assert.strictEqual(s1.body.data.botPlan.length, 2, "the phone gets the bot's plan");
+    assert(s1.body.data.botPlan.every((m) => m.correct === false && m.atSec >= 3));
     assert(s1.body.data.questions.every((x) => x.correctOptions === undefined));
     const id = s1.body.data.id;
     const wrong = ok(await answer(quiz.AnswerSession, "u1", id, "g1", 0));
@@ -292,7 +296,9 @@ function seed() {
     fails(await answer(quiz.AnswerSession, "u1", id, "g2", 2), 409);
   });
   await test("a full solo game scores from locked answers; the bot is rolled on the server", async () => {
+    Math.random = () => 0.99;
     const id = ok(await call(quiz.StartSession, { uid: "u1", body: { program: "ICAN" } })).body.data.id;
+    Math.random = realRandom;
     ok(await answer(quiz.AnswerSession, "u1", id, "g1", 1));
     ok(await answer(quiz.AnswerSession, "u1", id, "g2", 2));
     Math.random = () => 0.99;

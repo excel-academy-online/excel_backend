@@ -33,6 +33,30 @@ const BOT_ACCURACY = 0.6;
 const DAY = 24 * 60 * 60 * 1000;
 
 const now = () => new Date().toISOString();
+/**
+ * Student names and photos for the game and leaderboard. The token's name
+ * was often missing, so boards showed email prefixes; the profile in
+ * `users` has the real name. Cached briefly.
+ */
+let profilesCache = null;
+async function profiles() {
+  if (profilesCache && Date.now() - profilesCache.at < 5 * 60 * 1000) return profilesCache.map;
+  const snap = await db.collection("users").get();
+  const map = {};
+  snap.docs.forEach((d) => {
+    const u = d.data();
+    const entry = { name: u.name || u.username || u.displayName || "", photo: u.dp || u.photoUrl || null };
+    map[d.id] = entry;
+    if (u.id) map[u.id] = entry;
+  });
+  profilesCache = { at: Date.now(), map };
+  return map;
+}
+async function nameFor(req) {
+  const p = (await profiles().catch(() => ({})))[req.uid];
+  return (p && p.name) || displayName(req);
+}
+
 const displayName = (req) =>
   (req.user && (req.user.name || (req.user.email || "").split("@")[0])) || "Student";
 
@@ -136,16 +160,39 @@ exports.StartSession = catchAsync(async (req, res) => {
   if (!program) throw new AppError("program is required", 400);
   const questions = await pickQuestions(program, DEFAULT_COUNT);
   if (!questions.length) throw new AppError("There are no questions for this programme yet", 404);
-  const session = { uid: req.uid, program, questions, answers: {}, finished: false, createdAt: now() };
+  // Excel Bot: right about 60% of the time, answering 3-18s into each
+  // question like a person would.
+  const botPlan = questions.map(() => ({
+    correct: Math.random() < BOT_ACCURACY,
+    atSec: 3 + Math.floor(Math.random() * 16),
+  }));
+  const session = { uid: req.uid, program, questions, answers: {}, botPlan, finished: false, createdAt: now() };
   const ref = await db.collection("quizSessions").add(session);
-  res.status(201).json({ status: "ok", message: "Game started", data: { id: ref.id, program, questions: questions.map(publicQuestion) } });
+  sessionCache.set(ref.id, { at: Date.now(), s: session });
+  res.status(201).json({
+    status: "ok",
+    message: "Game started",
+    data: { id: ref.id, program, questions: questions.map(publicQuestion), botPlan },
+  });
 });
+
+// Games in progress, kept in memory so checking an answer doesn't wait on a
+// database read. Firestore stays the record; this is only a shortcut.
+const sessionCache = new Map();
+const SESSION_TTL_MS = 30 * 60 * 1000;
 
 async function loadSession(req, id) {
   const ref = db.collection("quizSessions").doc(String(id));
+  const hit = sessionCache.get(String(id));
+  if (hit && Date.now() - hit.at < SESSION_TTL_MS) {
+    if (hit.s.uid !== req.uid) throw new AppError("Game not found", 404);
+    return { ref, s: hit.s };
+  }
   const snap = await ref.get();
   if (!snap.exists || snap.data().uid !== req.uid) throw new AppError("Game not found", 404);
-  return { ref, s: snap.data() };
+  const s = snap.data();
+  sessionCache.set(String(id), { at: Date.now(), s });
+  return { ref, s };
 }
 
 /** POST /api/quiz/session/:id/answer { questionId, choice } */
@@ -154,8 +201,11 @@ exports.AnswerSession = catchAsync(async (req, res) => {
   if (s.finished) throw new AppError("This game is over", 409);
   const { questionId, choice } = req.body || {};
   const { entry, q, fresh } = lockAnswer(s.questions, s.answers, questionId, choice);
-  if (fresh) await ref.set({ answers: { [q.id]: entry } }, { merge: true });
+  if (fresh) s.answers = { ...(s.answers || {}), [q.id]: entry };
+  // Reply first, then save: the student sees green/red without waiting on
+  // the database write.
   res.status(200).json({ status: "ok", message: "Answer recorded", data: { correct: entry.correct, correctOptions: q.correctOptions } });
+  if (fresh) ref.set({ answers: { [q.id]: entry } }, { merge: true }).catch((e) => console.error("Saving answer failed:", e.message));
 });
 
 /* ---------------------------------------------------------- results */
@@ -186,7 +236,7 @@ async function addToTotals(uid, name, points) {
  */
 exports.SubmitResult = catchAsync(async (req, res) => {
   const b = req.body || {};
-  const name = displayName(req);
+  const name = await nameFor(req);
 
   if (b.sessionId) {
     const { ref, s } = await loadSession(req, b.sessionId);
@@ -194,9 +244,12 @@ exports.SubmitResult = catchAsync(async (req, res) => {
     const total = s.questions.length;
     const correct = countCorrect(s.answers);
     const points = correct * POINTS_PER_CORRECT;
-    const botCorrect = s.questions.filter(() => Math.random() < BOT_ACCURACY).length;
-    const opponentPoints = botCorrect * POINTS_PER_CORRECT;
-    await ref.set({ finished: true, finishedAt: now() }, { merge: true });
+    // The bot's score is the plan the phone showed, so the two always agree.
+    const plan = Array.isArray(s.botPlan) ? s.botPlan : s.questions.map(() => ({ correct: Math.random() < BOT_ACCURACY }));
+    const opponentPoints = plan.filter((m) => m.correct).length * POINTS_PER_CORRECT;
+    s.finished = true;
+    await ref.set({ finished: true, finishedAt: now(), answers: s.answers || {} }, { merge: true });
+    sessionCache.delete(String(b.sessionId));
 
     const result = {
       uid: req.uid, name, program: s.program, points, correct, total,
@@ -291,7 +344,11 @@ exports.Leaderboard = catchAsync(async (req, res) => {
   // have been played.
   if (!span) {
     const top = await db.collection("quizTotals").orderBy("points", "desc").limit(50).get();
-    const entries = top.docs.map((d, i) => ({ rank: i + 1, uid: d.id, name: d.data().name, points: d.data().points, movedUp: true }));
+    const prof = await profiles().catch(() => ({}));
+    const entries = top.docs.map((d, i) => ({
+      rank: i + 1, uid: d.id, name: (prof[d.id] || {}).name || d.data().name, photo: (prof[d.id] || {}).photo || null,
+      points: d.data().points, movedUp: true,
+    }));
     let me = entries.find((e) => e.uid === req.uid) || null;
     if (!me) {
       const mine = await db.collection("quizTotals").doc(req.uid).get();
@@ -303,6 +360,7 @@ exports.Leaderboard = catchAsync(async (req, res) => {
   }
 
   const nowMs = Date.now();
+  const prof = await profiles().catch(() => ({}));
   const all = (await db.collection("quizResults").where("createdAt", ">=", new Date(nowMs - 2 * span).toISOString()).get())
     .docs.map((d) => d.data());
   const current = all.filter((r) => Date.parse(r.createdAt) >= nowMs - span);
@@ -319,7 +377,10 @@ exports.Leaderboard = catchAsync(async (req, res) => {
   res.status(200).json({
     status: "ok",
     message: "Leaderboard fetched",
-    data: { period, entries: ranked.slice(0, 50), me: ranked.find((e) => e.uid === req.uid) || null },
+    data: (() => {
+      const withProfile = ranked.map((e) => ({ ...e, name: (prof[e.uid] || {}).name || e.name, photo: (prof[e.uid] || {}).photo || null }));
+      return { period, entries: withProfile.slice(0, 50), me: withProfile.find((e) => e.uid === req.uid) || null };
+    })(),
   });
 });
 
@@ -331,7 +392,7 @@ exports.MyStats = catchAsync(async (req, res) => {
     status: "ok",
     message: "Quiz stats fetched",
     data: {
-      name: displayName(req),
+      name: await nameFor(req),
       games: t ? t.games || 0 : 0,
       bestScore: t ? t.bestScore || 0 : 0,
       totalPoints: t ? t.points || 0 : 0,
@@ -376,7 +437,7 @@ async function loadMatch(req, id) {
 exports.FindMatch = catchAsync(async (req, res) => {
   const program = String((req.body || {}).program || "").trim();
   if (!program) throw new AppError("program is required", 400);
-  const name = displayName(req);
+  const name = await nameFor(req);
   const cutoff = new Date(Date.now() - MATCH_WAIT_MS).toISOString();
 
   const waiting = await db.collection("quizMatches").where("status", "==", "waiting").get();
