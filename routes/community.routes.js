@@ -35,4 +35,11 @@ router.post("/editComment", requireAuth, EditComment);
 router.get("/getCommunity", requireAuth, GetCommunityPost);
 router.get("/fetchAllComments", requireAuth, FetchAllComments);
 
+// Students: the dashboard's published groups; the author is the signed-in user.
+const sc = require("../controllers/studentCommunity.controller");
+router.get("/groups", requireAuth, sc.ListGroups);
+router.get("/groups/:id/messages", requireAuth, sc.ListMessages);
+router.post("/groups/:id/messages", requireAuth, sc.PostMessage);
+router.delete("/groups/:id/messages/:messageId", requireAuth, sc.DeleteMessage);
+
 module.exports = router;
