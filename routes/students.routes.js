@@ -30,6 +30,11 @@ router.get("/bookmarks", requireAuth, sd.GetBookmarks);
 router.put("/bookmarks", requireAuth, sd.SetBookmarks);
 router.post("/progress", requireAuth, sd.MarkLessonComplete);
 router.post("/enroll-free", requireAuth, sd.EnrollFree);
+
+// Profile photo, stored by the API (Firebase Storage uploads are blocked).
+const avatar = require("../controllers/avatar.controller");
+router.post("/photo", requireAuth, avatar.UploadPhoto);
+router.get("/photo/:uid", avatar.GetPhoto);
 router.get("/orders", requireAuth, sd.MyOrders);
 router.get("/orders/:reference/receipt", requireAuth, sd.Receipt);
 router.get("/achievements", requireAuth, sd.Achievements);

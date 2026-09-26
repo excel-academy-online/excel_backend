@@ -89,6 +89,8 @@ const ALLOW_ANONYMOUS = new Set([
   "POST /api/payment/webhook",
   // A static "payment received" page; it grants nothing.
   "GET /api/payment/callback",
+  // Profile photos are loaded by <img>/Image.network, which send no token.
+  "GET /api/students/photo/:uid",
 ]);
 const protectedRoutes = [];
 const publicRoutes = [];

@@ -224,6 +224,23 @@ function seed() {
     delete store.enrollments.u3_c4;
   });
 
+  await test("profile photos: upload checked, stored, served back", async () => {
+    const av = ctl("avatar.controller.js");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const req = { uid: "u1", protocol: "https", get: () => "api.test", body: { image: png.toString("base64") } };
+    const up = ok(await call(av.UploadPhoto, req));
+    assert.match(up.body.data.url, /\/api\/students\/photo\/u1\?v=\d+$/);
+    assert.strictEqual(store.users.u1.dp, up.body.data.url);
+    fails(await call(av.UploadPhoto, { ...req, body: { image: Buffer.from("not an image").toString("base64") } }), 400);
+    fails(await call(av.UploadPhoto, { ...req, body: { image: Buffer.alloc(400 * 1024, 0xff).toString("base64") } }), 413);
+    const got = await new Promise((resolve) => {
+      const res = { headers: {}, set(k, v) { this.headers[k] = v; return this; }, status() { return this; }, send(b) { resolve({ headers: this.headers, body: b }); } };
+      av.GetPhoto({ params: { uid: "u1" } }, res, (e) => resolve({ error: e }));
+    });
+    assert.strictEqual(got.headers["Content-Type"], "image/png");
+    assert(Buffer.compare(got.body, png) === 0, "same bytes back");
+  });
+
   /* orders & receipts */
   await test("students see only their own orders, with course titles", async () => {
     const o = ok(await call(sd.MyOrders, { uid: "u1" }));
