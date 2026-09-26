@@ -1,5 +1,5 @@
 const q = require("../controllers/quiz.controller");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 const router = require("express").Router();
 
 // Everything here needs a signed-in student. Answers never leave the server:
@@ -10,6 +10,8 @@ router.post("/session/:id/answer", requireAuth, q.AnswerSession);
 router.post("/results", requireAuth, q.SubmitResult);
 router.get("/leaderboard", requireAuth, q.Leaderboard);
 router.get("/me", requireAuth, q.MyStats);
+router.post("/report", requireAuth, q.ReportQuestion);
+router.get("/reports", ...requireAdmin, q.ListReports);
 
 // Live matches between two students. The controller checks the caller is a
 // player in the match.

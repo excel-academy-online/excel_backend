@@ -516,3 +516,33 @@ exports.CancelMatch = catchAsync(async (req, res) => {
 
 exports._answerIndex = answerIndex;
 exports.POINTS_PER_CORRECT = POINTS_PER_CORRECT;
+
+/**
+ * POST /api/quiz/report { questionId, reason? } - a student flags a question
+ * (wrong answer, typo, unclear). Staff review reports in quizReports; one
+ * report per student per question.
+ */
+exports.ReportQuestion = catchAsync(async (req, res) => {
+  const questionId = String((req.body || {}).questionId || "");
+  if (!questionId) throw new AppError("questionId is required", 400);
+  const q = await db.collection("gamification").doc(questionId).get();
+  if (!q.exists) throw new AppError("Question not found", 404);
+  const reason = String((req.body || {}).reason || "").trim().slice(0, 500);
+  await db.collection("quizReports").doc(`${questionId}_${req.uid}`).set({
+    questionId,
+    question: q.data().question || "",
+    uid: req.uid,
+    name: await nameFor(req),
+    reason,
+    status: "open",
+    createdAt: now(),
+  });
+  res.status(201).json({ status: "ok", message: "Thanks - we'll review this question", data: { questionId } });
+});
+
+/** GET /api/quiz/reports - staff: open question reports, newest first. */
+exports.ListReports = catchAsync(async (req, res) => {
+  const snap = await db.collection("quizReports").where("status", "==", "open").get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.status(200).json({ status: "ok", message: "Reports fetched", data });
+});
