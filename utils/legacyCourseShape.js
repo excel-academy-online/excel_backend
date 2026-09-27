@@ -18,6 +18,18 @@
  * structure with each module locked, which is what the app's lock UI expects.
  */
 
+const ICAN_PROGRAM_ID = "R24tuQ4ycfBXOFaZHKjI";
+/** Programme code from a course title prefix, for courses not tagged yet. */
+function programFromTitle(course) {
+  const t = String(course.title || "");
+  if (/^ICAN/.test(t) || course.programId === ICAN_PROGRAM_ID) return "ICAN";
+  if (/^(ACCA|F4 |P7 |Advanced Performance Management|Strategic Business Leader)/.test(t)) return "ACCA";
+  for (const code of ["CITN", "CIMA", "CIBN", "CIPM", "ICSAN", "CFA", "CPA", "AMAN"]) {
+    if (new RegExp("^" + code + "\\b").test(t)) return code;
+  }
+  return /^CIS /.test(t) ? "CIS" : "";
+}
+
 const toInt = (v) => {
   const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
   return Number.isFinite(n) ? Math.round(n) : 0;
@@ -67,6 +79,8 @@ function legacyCourse(course, { owned = false, withLessons = true } = {}) {
     // Free on the old website; enrolled via /students/enroll-free, no payment.
     isFree: course.isFree === true,
     level: course.level || "",
+    // Programme code (ICAN, ACCA, ...) so the app lists each programme's own courses.
+    program: course.program || programFromTitle(course),
     status: course.status,
     subscribers: [],
     owned,
