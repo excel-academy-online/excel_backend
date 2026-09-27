@@ -546,3 +546,11 @@ exports.ListReports = catchAsync(async (req, res) => {
   const data = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   res.status(200).json({ status: "ok", message: "Reports fetched", data });
 });
+
+/** POST /api/quiz/reports/:id/resolve - staff: close a question report. */
+exports.ResolveReport = catchAsync(async (req, res) => {
+  const ref = db.collection("quizReports").doc(String(req.params.id));
+  if (!(await ref.get()).exists) throw new AppError("Report not found", 404);
+  await ref.set({ status: "resolved", resolvedAt: now(), resolvedBy: req.uid }, { merge: true });
+  res.status(200).json({ status: "ok", message: "Report resolved", data: { id: req.params.id } });
+});

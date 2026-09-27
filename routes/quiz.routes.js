@@ -12,6 +12,7 @@ router.get("/leaderboard", requireAuth, q.Leaderboard);
 router.get("/me", requireAuth, q.MyStats);
 router.post("/report", requireAuth, q.ReportQuestion);
 router.get("/reports", ...requireAdmin, q.ListReports);
+router.post("/reports/:id/resolve", ...requireAdmin, q.ResolveReport);
 
 // Live matches between two students. The controller checks the caller is a
 // player in the match.
