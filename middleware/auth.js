@@ -56,6 +56,9 @@ async function requireAuth(req, res, next) {
     if (err.code === "auth/id-token-expired") {
       return next(new AppError("Session expired, please sign in again", 401));
     }
+    if (err.code === "auth/user-disabled") {
+      return next(new AppError("This account has been deactivated. Contact Excel Academy for help.", 403));
+    }
     if (err.code === "auth/id-token-revoked") {
       return next(new AppError("Session revoked, please sign in again", 401));
     }

@@ -49,6 +49,7 @@ const clientFirestore = {
   serverTimestamp: () => new Date(),
 };
 
+const authCalls = [];
 const adminStub = {
   apps: [{}],
   initializeApp: () => {},
@@ -58,6 +59,9 @@ const adminStub = {
   auth: () => ({
     verifyIdToken: async () => ({ uid: "u", role: "admin" }),
     getUser: async () => ({ uid: "admin-1", customClaims }),
+    // Deactivating a student disables their login too.
+    updateUser: async (uid, props) => authCalls.push(["updateUser", uid, props]),
+    revokeRefreshTokens: async (uid) => authCalls.push(["revoke", uid]),
   }),
 };
 
@@ -133,6 +137,8 @@ const run = (fn, req) =>
       const { err } = await run(usr.toggleUserStatus, { body: { user_id: "student-1", status: value } });
       assert.ok(!err, err && err.message);
       assert.strictEqual(updates.at(-1)?.payload.status, expect);
+      const login = authCalls.filter((c) => c[0] === "updateUser").at(-1);
+      assert.deepStrictEqual(login, ["updateUser", "student-1", { disabled: expect === 0 }]);
     });
   }
 

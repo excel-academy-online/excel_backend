@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { auth: adminAuth } = require("../firebaseadminvar");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const path = require("path");
@@ -339,6 +340,17 @@ const id  = user_id
       status: newStatus,
       dateModify: new Date().toUTCString(),
     });
+
+    // The flag alone did not stop anyone: a deactivated student could still
+    // sign in. Disable the Firebase login too and end open sessions (the API
+    // checks revocation on every request); reactivating turns it back on.
+    const uid = questionDoc.data().id || id;
+    try {
+      await adminAuth.updateUser(uid, { disabled: newStatus === 0 });
+      if (newStatus === 0) await adminAuth.revokeRefreshTokens(uid);
+    } catch (err) {
+      if (err.code !== "auth/user-not-found") throw err;
+    }
 
     res.status(200).json({
       status: "ok",
