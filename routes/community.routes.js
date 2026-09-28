@@ -40,6 +40,13 @@ const sc = require("../controllers/studentCommunity.controller");
 router.get("/groups", requireAuth, sc.ListGroups);
 router.get("/groups/:id/messages", requireAuth, sc.ListMessages);
 router.post("/groups/:id/messages", requireAuth, sc.PostMessage);
+router.post("/groups/:id/join", requireAuth, sc.Join);
+router.post("/groups/:id/leave", requireAuth, sc.Leave);
+// Attachments load in <img>/Image.network, which send no token; ids are random.
+router.get("/media/:id", sc.GetMedia);
+// Staff: members, remove / ban / unban.
+router.get("/groups/:id/members", ...requireAdmin, sc.ListMembers);
+router.post("/groups/:id/members/:uid/:action", ...requireAdmin, sc.ModerateMember);
 router.delete("/groups/:id/messages/:messageId", requireAuth, sc.DeleteMessage);
 
 module.exports = router;

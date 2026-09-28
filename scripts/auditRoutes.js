@@ -91,6 +91,8 @@ const ALLOW_ANONYMOUS = new Set([
   "GET /api/payment/callback",
   // Profile photos are loaded by <img>/Image.network, which send no token.
   "GET /api/students/photo/:uid",
+  // Community attachments, same reason; the ids are random.
+  "GET /api/community/media/:id",
 ]);
 const protectedRoutes = [];
 const publicRoutes = [];
