@@ -70,6 +70,7 @@ const MOUNTS = [
   ["/api/certificates", "../routes/cert.routes"],
   ["/api/chat", "../routes/chat.routes"],
   ["/api/quiz", "../routes/quiz.routes"],
+  ["/api/mock-exams", "../routes/mockExam.routes"],
   ["/api/referrals", "../routes/referral.routes"],
   ["/api/notifications", "../routes/notification.routes"],
 ];
