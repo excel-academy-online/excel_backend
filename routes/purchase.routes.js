@@ -5,7 +5,8 @@ const {
   PaymentCallback,
 } = require("../controllers/payment.controller");
 const { StrictLimiter } = require("../middleware/Limiter");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
+const { AdminListPayments, AdminVerifyPayment } = require("../controllers/payment.controller");
 
 const router = require("express").Router();
 
@@ -21,5 +22,9 @@ router.post("/webhook", PaystackWebhook);
 
 // The page Paystack redirects the browser to; the app closes its web view on it.
 router.get("/callback", PaymentCallback);
+
+// Staff: see payments and re-check stuck ones with Paystack.
+router.get("/admin/payments", ...requireAdmin, AdminListPayments);
+router.post("/admin/payments/:reference/verify", ...requireAdmin, AdminVerifyPayment);
 
 module.exports = router;

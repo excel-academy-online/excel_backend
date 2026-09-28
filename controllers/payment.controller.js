@@ -296,4 +296,63 @@ module.exports.PaymentCallback = (req, res) => {
     );
 };
 
+/* ------------------------------------------------------------ staff */
+
+/**
+ * GET /api/payment/admin/payments?status= - staff: recent payments, newest
+ * first, with buyer and courses. Pending/failed ones can be re-checked below.
+ */
+module.exports.AdminListPayments = catchAsync(async (req, res) => {
+  const snap = await db.collection(PAYMENTS).orderBy("createdAt", "desc").limit(200).get();
+  const want = String(req.query.status || "").toLowerCase();
+  const rows = snap.docs
+    .map((d) => d.data())
+    .filter((p) => !want || want === "all" || (want === "problem" ? p.status !== "success" : p.status === want));
+  const ids = [...new Set(rows.flatMap((p) => p.courseIds || []))];
+  const docs = ids.length ? await db.getAll(...ids.map((id) => db.collection(COURSES).doc(id))) : [];
+  const titles = Object.fromEntries(docs.filter((d) => d.exists).map((d) => [d.id, d.data().title || d.id]));
+  res.status(200).json({
+    status: "ok",
+    message: "Payments fetched",
+    data: rows.map((p) => ({
+      reference: p.reference,
+      email: p.email || "",
+      uid: p.uid,
+      courses: (p.courseIds || []).map((id) => titles[id] || id),
+      amount: (Number(p.amountKobo) || 0) / 100,
+      paid: p.paystack && p.paystack.amount ? Number(p.paystack.amount) / 100 : null,
+      status: p.status,
+      createdAt: p.createdAt || null,
+    })),
+  });
+});
+
+/**
+ * POST /api/payment/admin/payments/:reference/verify - staff: ask Paystack
+ * again and, if it was paid, unlock the courses. For payments that got stuck
+ * (e.g. the student closed the app, or a past bug rejected them).
+ */
+module.exports.AdminVerifyPayment = catchAsync(async (req, res, next) => {
+  if (!secret()) return next(new AppError("Payments are not configured on this server", 503));
+  const { reference } = req.params;
+  const snap = await db.collection(PAYMENTS).doc(reference).get();
+  if (!snap.exists) return next(new AppError("Unknown payment reference", 404));
+
+  let paid;
+  try {
+    paid = (await paystack().get(`/transaction/verify/${encodeURIComponent(reference)}`)).data.data;
+  } catch (err) {
+    return next(new AppError(`Could not reach Paystack: ${err.response?.data?.message || err.message}`, 502));
+  }
+  if (!paid || paid.status !== "success") {
+    return next(new AppError(`Paystack says this payment is "${paid ? paid.status : "unknown"}" - nothing to unlock`, 409));
+  }
+  const { alreadyDone } = await fulfil(reference, paid);
+  res.status(200).json({
+    status: "ok",
+    message: alreadyDone ? "Already confirmed - the student has the courses" : "Payment confirmed - courses unlocked",
+    data: { reference, status: "success" },
+  });
+});
+
 module.exports._fulfil = fulfil;
