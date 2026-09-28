@@ -71,9 +71,13 @@ async function fulfil(reference, paid) {
   const payment = snap.data();
   if (payment.status === "success") return { payment, alreadyDone: true };
 
-  // Paystack reports kobo. The amount must match what we asked for, or someone
-  // has tampered with the checkout.
-  if (Number(paid.amount) !== Number(payment.amountKobo) || paid.currency !== "NGN") {
+  // Paystack reports kobo. The price we asked for must have been paid, or
+  // someone has tampered with the checkout. When the account passes Paystack's
+  // fee to the customer, `amount` is price + fee and `requested_amount` is the
+  // price, so a ₦12,000 course is charged ₦12,284.27 - that is a valid payment.
+  const asked = Number(payment.amountKobo);
+  const requested = Number(paid.requested_amount ?? paid.amount);
+  if (requested !== asked || Number(paid.amount) < asked || paid.currency !== "NGN") {
     await ref.set({ status: "amount_mismatch", paystack: { amount: paid.amount, currency: paid.currency } }, { merge: true });
     throw new AppError("Payment amount does not match the order", 400);
   }

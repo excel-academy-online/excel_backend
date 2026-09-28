@@ -195,6 +195,16 @@ const student = (uid, email = `${uid}@x.com`) => ({ uid, user: { email }, role: 
     assert.ok(!store.enrollments["u1_wp-21"]);
   });
 
+  await test("a Paystack fee passed to the customer does NOT block it, but a cheaper order does", async () => {
+    paystackVerify = { status: "success", amount: 1000000 + 28427, requested_amount: 1000000, currency: "NGN" };
+    let { err } = await run(ctl.VerifyPayment, { ...student("u1"), params: { reference: refOf("u1") } });
+    assert.ok(err && err.statusCode === 400, "requested less than the order");
+    paystackVerify = { status: "success", amount: 2000000 + 28427, requested_amount: 2000000, currency: "NGN" };
+    ({ err } = await run(ctl.VerifyPayment, { ...student("u1"), params: { reference: refOf("u1") } }));
+    assert.ok(!err, err && err.message);
+    assert.ok(store.enrollments["u1_wp-21"] && store.enrollments["u1_wp-43"]);
+  });
+
   await test("an abandoned payment does NOT enrol", async () => {
     paystackVerify = { status: "abandoned", amount: 1200000, currency: "NGN" };
     const { err } = await run(ctl.VerifyPayment, { ...student("u2"), params: { reference: refOf("u2") } });
