@@ -59,6 +59,30 @@ const callbackBase = (req) =>
 
 const lessonCount = (c) => (c.lesson || []).reduce((n, s) => n + (s.content || []).length, 0);
 
+/*
+ * Cart gift box (Figma "index/cart/large-amount-bonus"): a purchase of at
+ * least BONUS_THRESHOLD earns BONUS_NAIRA off the student's next purchase.
+ * Kept in cartBonus/{uid}.balanceNaira; used at checkout, and only spent
+ * once that payment succeeds.
+ */
+const BONUS_THRESHOLD = 100000;
+const BONUS_NAIRA = 3500;
+const MIN_CHARGE_NAIRA = 100;
+
+async function bonusBalance(uid) {
+  const snap = await db.collection("cartBonus").doc(uid).get();
+  return snap.exists ? Math.max(0, toInt(snap.data().balanceNaira)) : 0;
+}
+
+/** GET /api/payment/bonus - the student's gift-box credit and the rule. */
+module.exports.GetBonus = catchAsync(async (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Bonus fetched",
+    data: { balance: await bonusBalance(req.uid), threshold: BONUS_THRESHOLD, amount: BONUS_NAIRA },
+  });
+});
+
 /**
  * Turn a successful payment into enrolments. Safe to call more than once for
  * the same reference.
@@ -129,6 +153,7 @@ async function fulfil(reference, paid) {
   );
   batch.set(ref, { status: "success", verifiedAt: now }, { merge: true });
   await batch.commit();
+  await settleBonus(payment);
   await creditReferral(payment.uid);
 
   const titles = courseDocs.filter((d) => d.exists).map((d) => d.data().title).filter(Boolean);
@@ -142,6 +167,36 @@ async function fulfil(reference, paid) {
   });
 
   return { payment: { ...payment, status: "success" }, alreadyDone: false };
+}
+
+/** Spends the credit this payment used and awards a new one if it qualifies. */
+async function settleBonus(payment) {
+  try {
+    const used = toInt(payment.creditUsedNaira);
+    const earned = toInt(payment.subtotalNaira || payment.amountKobo / 100) >= BONUS_THRESHOLD ? BONUS_NAIRA : 0;
+    if (!used && !earned) return;
+    const ref = db.collection("cartBonus").doc(payment.uid);
+    const payRef = db.collection(PAYMENTS).doc(payment.reference);
+    // Once per payment, even if the webhook and the app confirm it together.
+    const settled = await db.runTransaction(async (tx) => {
+      const [snap, pay] = await Promise.all([tx.get(ref), tx.get(payRef)]);
+      if (pay.exists && pay.data().bonusSettled) return false;
+      const bal = snap.exists ? toInt(snap.data().balanceNaira) : 0;
+      tx.set(ref, { balanceNaira: Math.max(0, bal - used) + earned, updatedAt: new Date().toISOString() }, { merge: true });
+      tx.set(payRef, { bonusSettled: true, bonusEarnedNaira: earned }, { merge: true });
+      return true;
+    });
+    if (settled && earned) {
+      await require("./notification.controller").notify(payment.uid, {
+        type: "account",
+        title: "You earned a gift-box bonus",
+        body: `NGN ${BONUS_NAIRA.toLocaleString("en-NG")} off your next course purchase.`,
+        data: { screen: "cart" },
+      });
+    }
+  } catch (err) {
+    console.error("Bonus settlement failed for", payment.reference, err.message);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -169,7 +224,9 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
   if (total <= 0) return next(new AppError("These courses have no price set", 400));
 
   const reference = `ea_${req.uid.slice(0, 8)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-  const amountKobo = total * 100;
+  // Gift-box credit comes off the price (never below the minimum charge).
+  const creditUsed = Math.min(await bonusBalance(req.uid), Math.max(0, total - MIN_CHARGE_NAIRA));
+  const amountKobo = (total - creditUsed) * 100;
 
   // Recorded before Paystack is called, so a webhook can never arrive for a
   // reference we have no record of.
@@ -179,6 +236,8 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
     email,
     courseIds: toBuy.map((d) => d.id),
     amountKobo,
+    subtotalNaira: total,
+    creditUsedNaira: creditUsed,
     status: "pending",
     createdAt: new Date().toISOString(),
   });
@@ -208,7 +267,9 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
       authorization_url: ps.data.data.authorization_url,
       access_code: ps.data.data.access_code,
       reference,
-      amount: total,
+      amount: total - creditUsed,
+      subtotal: total,
+      creditUsed,
       courses: toBuy.map((d) => ({ id: d.id, title: d.data().title || "", price: toInt(d.data().price) })),
       skippedAlreadyOwned: docs.length - toBuy.length,
     },

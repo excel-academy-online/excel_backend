@@ -19,7 +19,7 @@ const test = (name, fn) =>
 
 /* ------------------------------------------------------------ stubs */
 
-const store = { courses: {}, enrollments: {}, payments: {}, orders: {} };
+const store = { courses: {}, enrollments: {}, payments: {}, orders: {}, cartBonus: {} };
 const reset = () => {
   store.courses = {
     "wp-21": { title: "ICAN ATS 2", price: "12000", status: 1, lesson: [
@@ -142,6 +142,18 @@ const student = (uid, email = `${uid}@x.com`) => ({ uid, user: { email }, role: 
     const { err, r } = await run(ctl.InitializePayment, { ...student("u3"), body: { metadata: { cart_id: ["wp-21"] } } });
     assert.ok(!err, err && err.message);
     assert.strictEqual(r.body.data.amount, 12000);
+  });
+
+  await test("gift-box credit comes off the price and is recorded on the payment", async () => {
+    store.cartBonus.u8 = { balanceNaira: 3500 };
+    const { err, r } = await run(ctl.InitializePayment, { ...student("u8"), body: { courseIds: ["wp-21"] } });
+    assert.ok(!err, err && err.message);
+    assert.strictEqual(r.body.data.amount, 8500);
+    assert.strictEqual(r.body.data.creditUsed, 3500);
+    assert.strictEqual(axiosStub.lastInit.amount, "850000");
+    const p = Object.values(store.payments).find((x) => x.uid === "u8");
+    assert.strictEqual(p.subtotalNaira, 12000);
+    assert.strictEqual(p.creditUsedNaira, 3500);
   });
 
   await test("a pending payment is recorded before Paystack is called", () => {

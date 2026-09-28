@@ -6,7 +6,7 @@ const {
 } = require("../controllers/payment.controller");
 const { StrictLimiter } = require("../middleware/Limiter");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
-const { AdminListPayments, AdminVerifyPayment } = require("../controllers/payment.controller");
+const { AdminListPayments, AdminVerifyPayment, GetBonus } = require("../controllers/payment.controller");
 
 const router = require("express").Router();
 
@@ -15,6 +15,7 @@ const router = require("express").Router();
 // email in the body - the app sent the same hardcoded test email every time.)
 router.post("/initialize-payment", StrictLimiter, requireAuth, InitializePayment);
 router.get("/verify-payment/:reference", StrictLimiter, requireAuth, VerifyPayment);
+router.get("/bonus", requireAuth, GetBonus);
 
 // Paystack's server calls this; it proves itself with an HMAC signature
 // instead of a user token.
