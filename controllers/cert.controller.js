@@ -27,7 +27,7 @@ const {
   getDownloadURL,
   uploadBytesResumable,
   uploadBytes,
-} = require("firebase/storage");
+} = require("../utils/adminStorage");
 const { Readable } = require("stream");
 
 const storage = getStorage();

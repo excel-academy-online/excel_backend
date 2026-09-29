@@ -23,7 +23,7 @@ const {
   ref,
   getDownloadURL,
   uploadBytesResumable,
-} = require("firebase/storage");
+} = require("../utils/adminStorage");
 
 const storage = getStorage();
 

@@ -8,8 +8,9 @@ const {
   getStorage,
   ref,
   getDownloadURL,
-  uploadBytesResumable,
-} = require("firebase/storage");
+  uploadBytesResumable, uniquePath,
+} = require("../utils/adminStorage");
+const { bucket } = require("../firebaseadminvar");
 const {
   getFirestore,
   collection,
@@ -845,7 +846,30 @@ module.exports.uploadSessionContent = catchAsync(async (req, res, next) => {
     return next(new AppError("All fields are required", 403));
   }
 
-  if (!req.files || req.files.length === 0) {
+  // The dashboard now uploads videos straight to Storage (big files used to
+  // pass through this server's memory and could crash it) and sends the
+  // links as "medias": [{ url, type, name }]. Files can still be posted.
+  let uploaded = [];
+  try {
+    uploaded = typeof req.body.medias === "string" ? JSON.parse(req.body.medias) : req.body.medias || [];
+  } catch (_) {
+    return next(new AppError("medias must be a JSON list", 400));
+  }
+  // Lesson videos live on the VPS (like the 6,000 migrated ones); staff upload
+  // them there and paste the link. Only our own hosts are accepted.
+  const allowed = [
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/courses%2F`,
+    (process.env.VIDEO_BASE_URL || "https://courses.excelacademyonline.com/wp-content/uploads").replace(/\/+$/, "") + "/",
+  ];
+  const okLink = (u) =>
+    typeof u === "string" &&
+    allowed.some((p) => u.startsWith(p)) &&
+    !u.includes("..") &&
+    !/\.(php\d?|phtml|phar)(\?|$)/i.test(u);
+  if (!Array.isArray(uploaded) || uploaded.some((m) => !m || !okLink(m.url))) {
+    return next(new AppError("Video links must be on courses.excelacademyonline.com/wp-content/uploads/ (or uploaded here)", 400));
+  }
+  if ((!req.files || req.files.length === 0) && uploaded.length === 0) {
     return next(new AppError("Error: No files uploaded", 400));
   }
 
@@ -867,10 +891,16 @@ module.exports.uploadSessionContent = catchAsync(async (req, res, next) => {
   }
 
   const storage = getStorage();
-  const mediaContents = [];
+  const mediaContents = uploaded.map((m) => ({
+    image: m.url,
+    thumbnail: m.url,
+    type: ["video", "image", "pdf", "doc"].includes(m.type) ? m.type : "unknown",
+    status: 1,
+  }));
 
-  for (const file of req.files) {
-    const storageRef = ref(storage, `courses/${file.originalname}`);
+  for (const file of req.files || []) {
+    // Unique name: two uploads called "lecture1.mp4" used to overwrite each other.
+    const storageRef = ref(storage, uniquePath("courses", file.originalname));
     const uploadTask = uploadBytesResumable(storageRef, file.buffer);
 
     await new Promise((resolve, reject) => {

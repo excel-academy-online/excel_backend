@@ -9,7 +9,7 @@ const {
   ref,
   getDownloadURL,
   uploadBytesResumable,
-} = require("firebase/storage");
+} = require("../utils/adminStorage");
 const firebase = require("firebase/app");
 
 require("dotenv").config();

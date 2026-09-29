@@ -10,7 +10,7 @@ const {
   ref,
   getDownloadURL,
   uploadBytesResumable,
-} = require("firebase/storage");
+} = require("../utils/adminStorage");
 const {
   getFirestore,
   collection,

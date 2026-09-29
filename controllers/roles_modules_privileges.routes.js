@@ -20,7 +20,7 @@ const {
   ref,
   getDownloadURL,
   uploadBytesResumable,
-} = require("firebase/storage");
+} = require("../utils/adminStorage");
 const firebaseConfig = require("../utils/firebase.config");
 const User = require("../models/user.model");
 const catchAsync = require("../utils/errors/catchAsync");
