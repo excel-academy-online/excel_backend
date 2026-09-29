@@ -345,15 +345,35 @@ module.exports.PaystackWebhook = catchAsync(async (req, res) => {
  * in a normal browser. It confirms nothing by itself; enrolment happens via
  * verify-payment or the webhook.
  */
-module.exports.PaymentCallback = (req, res) => {
+module.exports.PaymentCallback = async (req, res) => {
+  // Paystack adds ?reference= (and trxref=). Confirm it here too, so the
+  // courses unlock even if the app missed the redirect. Only Paystack's own
+  // answer unlocks anything, so this is safe to run unauthenticated.
+  const reference = String(req.query.reference || req.query.trxref || "");
+  let confirmed = false;
+  if (reference && secret()) {
+    try {
+      const paid = (await paystack().get(`/transaction/verify/${encodeURIComponent(reference)}`)).data.data;
+      if (paid && paid.status === "success") {
+        await fulfil(reference, paid);
+        confirmed = true;
+      }
+    } catch (err) {
+      console.error("Callback verification failed for", reference, err.message);
+    }
+  }
+  const title = confirmed ? "Payment confirmed" : "Payment received";
+  const body = confirmed
+    ? "Your courses are unlocked. Return to the Excel Academy app - they are in My Learning."
+    : "Return to the Excel Academy app. Your courses unlock as soon as the payment is confirmed.";
   res
     .status(200)
     .type("html")
     .send(
       '<!doctype html><meta name="viewport" content="width=device-width">' +
-        "<title>Payment received</title>" +
+        `<title>${title}</title>` +
         '<body style="font-family:system-ui;text-align:center;padding:48px">' +
-        "<h2>Payment received</h2><p>You can return to the Excel Academy app.</p></body>"
+        `<h2>${title}</h2><p>${body}</p></body>`
     );
 };
 
