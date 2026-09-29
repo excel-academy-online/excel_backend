@@ -179,3 +179,13 @@ exports.AdminSend = catchAsync(async (req, res) => {
   if (!id) throw new AppError("Could not send the notification", 502);
   res.status(201).json({ status: "ok", message: "Notification sent", data: { id } });
 });
+
+/** GET /api/notifications/broadcasts - staff: the latest broadcasts, newest first. */
+exports.AdminListBroadcasts = catchAsync(async (req, res) => {
+  const snap = await db.collection("broadcasts").orderBy("createdAt", "desc").limit(50).get();
+  res.status(200).json({
+    status: "ok",
+    message: "Broadcasts fetched",
+    data: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+  });
+});

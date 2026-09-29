@@ -10,6 +10,7 @@ router.delete("/token", requireAuth, n.RemoveToken);
 
 // Sending is staff-only.
 router.post("/broadcast", ...requireAdmin, n.AdminBroadcast);
+router.get("/broadcasts", ...requireAdmin, n.AdminListBroadcasts);
 router.post("/send", ...requireAdmin, n.AdminSend);
 
 module.exports = router;
