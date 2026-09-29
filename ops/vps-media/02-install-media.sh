@@ -54,12 +54,31 @@ run "mkdir -p $TRASH/.incoming && chown -R media:media $TRASH && chmod 750 $TRAS
 
 say ""
 say "== 3. Let 'media' manage ONLY the uploads folder (ACL; ownership unchanged) =="
-# Just enough to walk down to the uploads folder:
-for d in /home/exceuapm "$SITE" "$SITE/wp-content"; do run "setfacl -m u:media:--x '$d'"; done
+# Just enough to walk down to the uploads folder. Skip folders everyone can
+# already pass through - some are locked with chattr +i since the WordPress
+# cleanup (on purpose), and setfacl can't change those.
+for d in /home/exceuapm "$SITE" "$SITE/wp-content"; do
+  if [ "$(stat -c %A "$d" | cut -c10)" = "x" ]; then
+    say "ok: $d is already passable ($(stat -c %A "$d"))"
+  elif lsattr -d "$d" 2>/dev/null | cut -c1-20 | grep -q i; then
+    say "NOTE: $d is locked (chattr +i) and not passable - run: chattr -i '$d' && chmod o+x '$d' && chattr +i '$d'"
+    [ "$MODE" = "--apply" ] && exit 1
+  else
+    run "setfacl -m u:media:--x '$d'"
+  fi
+done
 # Read/write inside uploads, and the same for anything created later:
-run "setfacl -R -m u:media:rwX '$UPLOADS'"
-run "setfacl -R -d -m u:media:rwX '$UPLOADS'"
-run "mkdir -p '$UPLOADS/lessons' && chown exceuapm:exceuapm '$UPLOADS/lessons'"
+run "setfacl -R -m u:media:rwX '$UPLOADS' 2>&1 | head -5 || true"
+run "setfacl -R -d -m u:media:rwX '$UPLOADS' 2>&1 | head -5 || true"
+run "mkdir -p '$UPLOADS/lessons' && chown exceuapm:exceuapm '$UPLOADS/lessons' && setfacl -m u:media:rwx -m d:u:media:rwx '$UPLOADS/lessons'"
+if [ "$MODE" = "--apply" ]; then
+  if sudo -u media test -w "$UPLOADS/lessons" && sudo -u media test -r "$UPLOADS"; then
+    say "ok: media can read uploads and write uploads/lessons"
+  else
+    say "PROBLEM: media still can't reach the uploads folder - send me: ls -ld /home/exceuapm $SITE $SITE/wp-content $UPLOADS; lsattr -d $SITE/wp-content $UPLOADS"
+    exit 1
+  fi
+fi
 
 say ""
 say "== 4. Install the service =="
