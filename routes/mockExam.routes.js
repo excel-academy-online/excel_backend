@@ -1,6 +1,12 @@
 const m = require("../controllers/mockExam.controller");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 const router = require("express").Router();
+
+// Staff: manage every course's mock exam. (Before /:courseId so "admin" is not read as a course id.)
+router.get("/admin/all", ...requireAdmin, m.AdminList);
+router.get("/admin/:courseId", ...requireAdmin, m.AdminGet);
+router.put("/admin/:courseId", ...requireAdmin, m.AdminSave);
+router.post("/admin/:courseId/status", ...requireAdmin, m.AdminSetStatus);
 
 // Students' mock exams. Answers stay on the server until an attempt is submitted.
 router.get("/", requireAuth, m.ListMine);

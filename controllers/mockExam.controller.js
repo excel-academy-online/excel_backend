@@ -201,3 +201,106 @@ exports.Discard = catchAsync(async (req, res) => {
   await attemptRef(req.uid, req.params.courseId).set({ current: null }, { merge: true });
   res.status(200).json({ status: "ok", message: "Attempt discarded", data: {} });
 });
+
+/* ------------------------------------------------------------ staff */
+
+/** GET /api/mock-exams/admin/all - every mock exam with how often it's taken. */
+exports.AdminList = catchAsync(async (req, res) => {
+  const [exams, attempts] = await Promise.all([db.collection(EXAMS).get(), db.collection(ATTEMPTS).get()]);
+  const stats = {};
+  attempts.docs.forEach((d) => {
+    const a = d.data();
+    const s = (stats[a.courseId] = stats[a.courseId] || { students: 0, attempts: 0, scoreSum: 0, inProgress: 0 });
+    s.students++;
+    if (a.current) s.inProgress++;
+    for (const h of a.history || []) { s.attempts++; s.scoreSum += h.score; }
+  });
+  const data = exams.docs.map((d) => {
+    const e = d.data();
+    const s = stats[d.id] || { students: 0, attempts: 0, scoreSum: 0, inProgress: 0 };
+    return {
+      id: d.id,
+      courseId: d.id,
+      title: e.title || "",
+      level: e.level || "",
+      minutes: e.minutes || 0,
+      questionCount: (e.questions || []).length,
+      status: Number(e.status ?? 1),
+      source: e.source || "staff",
+      students: s.students,
+      attempts: s.attempts,
+      inProgress: s.inProgress,
+      averageScore: s.attempts ? Math.round(s.scoreSum / s.attempts) : null,
+      updatedAt: e.updatedAt || null,
+    };
+  });
+  res.status(200).json({ status: "ok", message: "Mock exams", data });
+});
+
+/** GET /api/mock-exams/admin/:courseId - one exam with its answers, for editing. */
+exports.AdminGet = catchAsync(async (req, res) => {
+  const snap = await db.collection(EXAMS).doc(String(req.params.courseId)).get();
+  if (!snap.exists) {
+    const course = await db.collection("courses").doc(String(req.params.courseId)).get();
+    if (!course.exists) throw new AppError("Course not found", 404);
+    return res.status(200).json({
+      status: "ok",
+      message: "New mock exam",
+      data: { courseId: course.id, title: `${course.data().title} - Mock Examination`, level: course.data().level || "", minutes: 15, status: 1, questions: [] },
+    });
+  }
+  res.status(200).json({ status: "ok", message: "Mock exam", data: { ...snap.data(), courseId: snap.id } });
+});
+
+/**
+ * PUT /api/mock-exams/admin/:courseId { title, minutes, status, questions[] }
+ * Create or replace a course's mock exam. Each question needs text, 2-6
+ * options and the index of the right one. Saved as a staff exam, so the
+ * seed script never overwrites it.
+ */
+exports.AdminSave = catchAsync(async (req, res) => {
+  const courseId = String(req.params.courseId);
+  const course = await db.collection("courses").doc(courseId).get();
+  if (!course.exists) throw new AppError("Course not found", 404);
+  const b = req.body || {};
+  const questions = Array.isArray(b.questions) ? b.questions : [];
+  if (!questions.length) throw new AppError("Add at least one question", 400);
+  const clean = questions.map((q, i) => {
+    const options = (Array.isArray(q.options) ? q.options : []).map((o) => String(o || "").trim()).filter(Boolean);
+    const answer = Number(q.answer);
+    if (!String(q.question || "").trim()) throw new AppError(`Question ${i + 1} has no text`, 400);
+    if (options.length < 2 || options.length > 6) throw new AppError(`Question ${i + 1} needs 2 to 6 options`, 400);
+    if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) {
+      throw new AppError(`Question ${i + 1}: pick the correct option`, 400);
+    }
+    return {
+      id: String(q.id || `q-${Date.now().toString(36)}-${i}`),
+      question: String(q.question).trim(),
+      options,
+      answer,
+      explanation: String(q.explanation || "").trim(),
+    };
+  });
+  const minutes = Math.max(1, Math.min(300, Math.round(Number(b.minutes) || clean.length * 1.5)));
+  await db.collection(EXAMS).doc(courseId).set({
+    courseId,
+    title: String(b.title || `${course.data().title} - Mock Examination`).trim(),
+    level: course.data().level || "",
+    minutes,
+    status: Number(b.status ?? 1) === 1 ? 1 : 0,
+    source: "staff",
+    questions: clean,
+    updatedAt: now(),
+    updatedBy: req.uid,
+  });
+  res.status(200).json({ status: "ok", message: "Mock exam saved", data: { courseId, questionCount: clean.length } });
+});
+
+/** POST /api/mock-exams/admin/:courseId/status { status: 1|0 } - publish or hide. */
+exports.AdminSetStatus = catchAsync(async (req, res) => {
+  const ref = db.collection(EXAMS).doc(String(req.params.courseId));
+  if (!(await ref.get()).exists) throw new AppError("Mock exam not found", 404);
+  const status = Number((req.body || {}).status) === 1 ? 1 : 0;
+  await ref.set({ status, updatedAt: now() }, { merge: true });
+  res.status(200).json({ status: "ok", message: status ? "Mock exam published" : "Mock exam hidden", data: { status } });
+});
