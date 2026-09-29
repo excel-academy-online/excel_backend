@@ -434,10 +434,24 @@ module.exports.PublishCommunityPost = catchAsync(async (req, res, next) => {
     dateUpdated: new Date().toUTCString(),
   };
 
+  const wasPublished = ["publish", "published"].includes(String(docSnapshot.data().status || "").toLowerCase());
   await updateDoc(communityRef, updateData).catch((error) => {
     console.error(error);
     return next(new AppError("Failed to publish community post"));
   });
+
+  // First time a group goes live, tell every student it exists.
+  if (!wasPublished) {
+    const g = docSnapshot.data();
+    require("./notification.controller")
+      .broadcast({
+        type: "news",
+        title: `New study group: ${g.title || "Community"}`,
+        body: `${String(g.description || "Join other students to share notes and ask questions.").slice(0, 140)} Tap Community to join.`,
+        data: { screen: "community", groupId: id },
+      })
+      .catch(() => {});
+  }
 
   res.status(200).json({
     status: "ok",

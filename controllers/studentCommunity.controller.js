@@ -227,6 +227,20 @@ exports.PostMessage = catchAsync(async (req, res) => {
       { merge: true }
     );
   });
+  // Tell the person being replied to (push + in-app notification).
+  if (msg.replyTo && msg.replyTo.sender && msg.replyTo.sender !== req.uid) {
+    const who = await people();
+    const name = (who[req.uid] || {}).name || "Someone";
+    const preview = text || (media ? (media.type === "application/pdf" ? "sent a PDF" : "sent a photo") : "");
+    require("./notification.controller")
+      .notify(msg.replyTo.sender, {
+        type: "activities",
+        title: `${name} replied to you in ${g.title || "your study group"}`,
+        body: preview.length > 120 ? preview.slice(0, 117) + "..." : preview,
+        data: { screen: "community", groupId: ref.id },
+      })
+      .catch(() => {});
+  }
   res.status(201).json({ status: "ok", message: "Posted", data: { id: msg.id } });
 });
 
