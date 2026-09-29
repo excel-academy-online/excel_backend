@@ -322,3 +322,29 @@ exports.ModerateMember = catchAsync(async (req, res) => {
   });
   res.status(200).json({ status: "ok", message: `Member ${action === "unban" ? "unbanned" : action + (action === "ban" ? "ned" : "d")}`, data: { uid } });
 });
+
+/**
+ * GET /api/community/groups/:id/members - for the group's Members tab.
+ * Names, photos and a staff flag only - students never see each other's
+ * emails (staff have ListMembers for that). Newest members first.
+ */
+exports.StudentMembers = catchAsync(async (req, res) => {
+  const { snap } = await loadGroup(req.params.id);
+  const g = snap.data();
+  const banned = new Set(g.removedStudent || []);
+  const who = await people();
+  const posts = {};
+  liveMessages(g).forEach((m) => (posts[m.sender] = (posts[m.sender] || 0) + 1));
+  const data = membersOf(g)
+    .filter((u) => !banned.has(u))
+    .reverse()
+    .map((u) => ({
+      uid: u,
+      name: (who[u] || {}).name || "Student",
+      photo: (who[u] || {}).photo || null,
+      staff: !!(who[u] || {}).staff,
+      messages: posts[u] || 0,
+      me: u === req.uid,
+    }));
+  res.status(200).json({ status: "ok", message: "Members fetched", data });
+});

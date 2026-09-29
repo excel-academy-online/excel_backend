@@ -42,6 +42,7 @@ router.get("/groups/:id/messages", requireAuth, sc.ListMessages);
 router.post("/groups/:id/messages", requireAuth, sc.PostMessage);
 router.post("/groups/:id/join", requireAuth, sc.Join);
 router.post("/groups/:id/leave", requireAuth, sc.Leave);
+router.get("/groups/:id/members/public", requireAuth, sc.StudentMembers);
 // Attachments load in <img>/Image.network, which send no token; ids are random.
 router.get("/media/:id", sc.GetMedia);
 // Staff: members, remove / ban / unban.
