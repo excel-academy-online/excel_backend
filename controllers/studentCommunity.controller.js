@@ -56,7 +56,7 @@ const liveMessages = (g) => (g.msg || []).filter((m) => Number(m.status ?? 1) ==
 const membersOf = (g) =>
   Array.isArray(g.members) ? g.members : [...new Set(liveMessages(g).map((m) => m.sender))];
 
-const shapeGroup = (d, uid) => {
+const shapeGroup = (d, uid, who = {}) => {
   const g = d.data();
   const msgs = liveMessages(g);
   const members = membersOf(g);
@@ -72,13 +72,22 @@ const shapeGroup = (d, uid) => {
     allowReplies: repliesOpen(g),
     removed: (g.removedStudent || []).includes(uid),
     lastActivity: msgs.length ? msgs[msgs.length - 1].dateCreated : g.dateUpdated || g.dateCreated || null,
+    createdAt: g.dateCreated || g.date || null,
+    // Up to five member photos for the card's avatar stack (newest members last).
+    memberPhotos: members.map((m) => (who[m] || {}).photo).filter(Boolean).slice(-5),
   };
 };
 
 /** GET /api/community/groups - published groups. */
 exports.ListGroups = catchAsync(async (req, res) => {
   const snap = await db.collection("communities").get();
-  const data = snap.docs.filter((d) => isPublished(d.data())).map((d) => shapeGroup(d, req.uid));
+  const groups = snap.docs.filter((d) => isPublished(d.data()));
+  // Only the few members shown on each card - loading every user made the
+  // list take seconds.
+  const ids = [...new Set(groups.flatMap((d) => membersOf(d.data()).slice(-5)))];
+  const docs = ids.length ? await db.getAll(...ids.map((id) => db.collection("users").doc(id))) : [];
+  const who = Object.fromEntries(docs.filter((u) => u.exists).map((u) => [u.id, { photo: u.data().dp || null }]));
+  const data = groups.map((d) => shapeGroup(d, req.uid, who));
   res.status(200).json({ status: "ok", message: "Groups fetched", data });
 });
 
