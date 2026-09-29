@@ -25,6 +25,7 @@ const certRouter = require("./routes/cert.routes");
 const chatRouter = require("./routes/chat.routes");
 const quizRouter = require("./routes/quiz.routes");
 const mockExamRouter = require("./routes/mockExam.routes");
+const videosRouter = require("./routes/videos.routes");
 const notificationRouter = require("./routes/notification.routes");
 const referralRouter = require("./routes/referral.routes");
 const { optionalAuth } = require("./middleware/auth");
@@ -106,6 +107,7 @@ app.use("/api/certificates", certRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/quiz", quizRouter);
 app.use("/api/mock-exams", mockExamRouter);
+app.use("/api/videos", videosRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/referrals", referralRouter);
 // Home screen rows. Public; signed-in students get personal recommendations.
