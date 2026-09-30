@@ -74,12 +74,15 @@ const DEFAULT_INSTRUCTIONS = [
 
 /** The group's admin shown at the top (Figma: name, credentials). Staff can set it; otherwise the creator. */
 const adminOf = (g, who) => {
-  const creator = who[g.userId] || {};
   const set = g.groupAdmin || {};
+  // The chosen admin account, else whoever created the group.
+  const uid = set.uid || g.userId || null;
+  const person = who[uid] || {};
   return {
-    name: set.name || creator.name || "Excel Academy",
+    uid,
+    name: set.name || person.name || "Excel Academy",
     title: set.title || "",
-    photo: set.photo || creator.photo || null,
+    photo: person.photo || null,
   };
 };
 
@@ -113,7 +116,11 @@ exports.ListGroups = catchAsync(async (req, res) => {
   const groups = snap.docs.filter((d) => isPublished(d.data()));
   // Only the few members shown on each card - loading every user made the
   // list take seconds.
-  const ids = [...new Set(groups.flatMap((d) => [...membersOf(d.data()).slice(-5), d.data().userId].filter(Boolean)))];
+  const ids = [
+    ...new Set(
+      groups.flatMap((d) => [...membersOf(d.data()).slice(-5), d.data().userId, (d.data().groupAdmin || {}).uid].filter(Boolean))
+    ),
+  ];
   const docs = ids.length ? await db.getAll(...ids.map((id) => db.collection("users").doc(id))) : [];
   const who = Object.fromEntries(
     docs
@@ -398,7 +405,11 @@ exports.SaveDetails = catchAsync(async (req, res) => {
     .slice(0, 12);
   await ref.set(
     {
-      groupAdmin: { name: String(admin.name || "").trim().slice(0, 80), title: String(admin.title || "").trim().slice(0, 120) },
+      groupAdmin: {
+        uid: String(admin.uid || "").trim(),
+        name: String(admin.name || "").trim().slice(0, 80),
+        title: String(admin.title || "").trim().slice(0, 120),
+      },
       instructions,
       dateUpdated: new Date().toUTCString(),
     },
@@ -416,7 +427,8 @@ exports.GetDetails = catchAsync(async (req, res) => {
     status: "ok",
     message: "Group details",
     data: {
-      admin: { name: (g.groupAdmin || {}).name || "", title: (g.groupAdmin || {}).title || "" },
+      admin: { uid: (g.groupAdmin || {}).uid || "", name: (g.groupAdmin || {}).name || "", title: (g.groupAdmin || {}).title || "" },
+      creatorUid: g.userId || "",
       creatorName: (who[g.userId] || {}).name || "",
       instructions: Array.isArray(g.instructions) ? g.instructions : [],
       defaults: DEFAULT_INSTRUCTIONS,

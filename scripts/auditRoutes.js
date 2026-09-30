@@ -72,6 +72,7 @@ const MOUNTS = [
   ["/api/quiz", "../routes/quiz.routes"],
   ["/api/mock-exams", "../routes/mockExam.routes"],
   ["/api/videos", "../routes/videos.routes"],
+  ["/api/admin-chat", "../routes/adminChat.routes"],
   ["/api/referrals", "../routes/referral.routes"],
   ["/api/notifications", "../routes/notification.routes"],
 ];
