@@ -56,6 +56,33 @@ const liveMessages = (g) => (g.msg || []).filter((m) => Number(m.status ?? 1) ==
 const membersOf = (g) =>
   Array.isArray(g.members) ? g.members : [...new Set(liveMessages(g).map((m) => m.sender))];
 
+/** Figma's three house rules - used until staff write a group's own. */
+const DEFAULT_INSTRUCTIONS = [
+  {
+    title: "Confidentiality",
+    body: "Respect the confidentiality of everything shared in this group. Do not share other members' details, answers or materials outside it.",
+  },
+  {
+    title: "Ethical Conduct",
+    body: "Keep to high ethical standards. No cheating, leaked exam questions, harassment, spam or advertising.",
+  },
+  {
+    title: "Professional Development",
+    body: "Use the group to grow: ask questions, share notes and resources, and help others prepare for their exams.",
+  },
+];
+
+/** The group's admin shown at the top (Figma: name, credentials). Staff can set it; otherwise the creator. */
+const adminOf = (g, who) => {
+  const creator = who[g.userId] || {};
+  const set = g.groupAdmin || {};
+  return {
+    name: set.name || creator.name || "Excel Academy",
+    title: set.title || "",
+    photo: set.photo || creator.photo || null,
+  };
+};
+
 const shapeGroup = (d, uid, who = {}) => {
   const g = d.data();
   const msgs = liveMessages(g);
@@ -73,6 +100,8 @@ const shapeGroup = (d, uid, who = {}) => {
     removed: (g.removedStudent || []).includes(uid),
     lastActivity: msgs.length ? msgs[msgs.length - 1].dateCreated : g.dateUpdated || g.dateCreated || null,
     createdAt: g.dateCreated || g.date || null,
+    admin: adminOf(g, who),
+    instructions: Array.isArray(g.instructions) && g.instructions.length ? g.instructions : DEFAULT_INSTRUCTIONS,
     // Up to five member photos for the card's avatar stack (newest members last).
     memberPhotos: members.map((m) => (who[m] || {}).photo).filter(Boolean).slice(-5),
   };
@@ -84,9 +113,13 @@ exports.ListGroups = catchAsync(async (req, res) => {
   const groups = snap.docs.filter((d) => isPublished(d.data()));
   // Only the few members shown on each card - loading every user made the
   // list take seconds.
-  const ids = [...new Set(groups.flatMap((d) => membersOf(d.data()).slice(-5)))];
+  const ids = [...new Set(groups.flatMap((d) => [...membersOf(d.data()).slice(-5), d.data().userId].filter(Boolean)))];
   const docs = ids.length ? await db.getAll(...ids.map((id) => db.collection("users").doc(id))) : [];
-  const who = Object.fromEntries(docs.filter((u) => u.exists).map((u) => [u.id, { photo: u.data().dp || null }]));
+  const who = Object.fromEntries(
+    docs
+      .filter((u) => u.exists)
+      .map((u) => [u.id, { photo: u.data().dp || null, name: u.data().name || u.data().username || (u.data().email || "").split("@")[0] }])
+  );
   const data = groups.map((d) => shapeGroup(d, req.uid, who));
   res.status(200).json({ status: "ok", message: "Groups fetched", data });
 });
@@ -128,7 +161,7 @@ exports.ListMessages = catchAsync(async (req, res) => {
       createdAt: m.dateCreated ? new Date(m.dateCreated).toISOString() : null,
     };
   });
-  res.status(200).json({ status: "ok", message: "Messages fetched", data: { group: shapeGroup(snap, req.uid), messages } });
+  res.status(200).json({ status: "ok", message: "Messages fetched", data: { group: shapeGroup(snap, req.uid, who), messages } });
 });
 
 /** POST /api/community/groups/:id/join */
@@ -347,4 +380,46 @@ exports.StudentMembers = catchAsync(async (req, res) => {
       me: u === req.uid,
     }));
   res.status(200).json({ status: "ok", message: "Members fetched", data });
+});
+
+/**
+ * PUT /api/community/groups/:id/details - staff: the group's admin line and
+ * its own instructions (Figma's detail page).
+ *   { admin: { name, title }, instructions: [{ title, body }] }
+ * Empty instructions go back to the default house rules.
+ */
+exports.SaveDetails = catchAsync(async (req, res) => {
+  const { ref } = await loadGroup(req.params.id, { any: true });
+  const b = req.body || {};
+  const admin = b.admin || {};
+  const instructions = (Array.isArray(b.instructions) ? b.instructions : [])
+    .map((i) => ({ title: String((i && i.title) || "").trim().slice(0, 80), body: String((i && i.body) || "").trim().slice(0, 1500) }))
+    .filter((i) => i.title || i.body)
+    .slice(0, 12);
+  await ref.set(
+    {
+      groupAdmin: { name: String(admin.name || "").trim().slice(0, 80), title: String(admin.title || "").trim().slice(0, 120) },
+      instructions,
+      dateUpdated: new Date().toUTCString(),
+    },
+    { merge: true }
+  );
+  res.status(200).json({ status: "ok", message: "Group details saved", data: { instructions: instructions.length } });
+});
+
+/** GET /api/community/groups/:id/details - staff: current values for the form. */
+exports.GetDetails = catchAsync(async (req, res) => {
+  const { snap } = await loadGroup(req.params.id, { any: true });
+  const g = snap.data();
+  const who = await people();
+  res.status(200).json({
+    status: "ok",
+    message: "Group details",
+    data: {
+      admin: { name: (g.groupAdmin || {}).name || "", title: (g.groupAdmin || {}).title || "" },
+      creatorName: (who[g.userId] || {}).name || "",
+      instructions: Array.isArray(g.instructions) ? g.instructions : [],
+      defaults: DEFAULT_INSTRUCTIONS,
+    },
+  });
 });

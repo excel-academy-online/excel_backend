@@ -47,6 +47,8 @@ router.get("/groups/:id/members/public", requireAuth, sc.StudentMembers);
 router.get("/media/:id", sc.GetMedia);
 // Staff: members, remove / ban / unban.
 router.get("/groups/:id/members", ...requireAdmin, sc.ListMembers);
+router.get("/groups/:id/details", ...requireAdmin, sc.GetDetails);
+router.put("/groups/:id/details", ...requireAdmin, sc.SaveDetails);
 router.post("/groups/:id/members/:uid/:action", ...requireAdmin, sc.ModerateMember);
 router.delete("/groups/:id/messages/:messageId", requireAuth, sc.DeleteMessage);
 
