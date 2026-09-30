@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// Firebase Storage rules for excel-academy-online.appspot.com.
+//
+// Reading stays public (course images, PDFs, avatars and lesson files are
+// loaded by the app and dashboard with plain links). Writing used to be open
+// to ANYONE on the internet for most folders; now only staff can write, and a
+// signed-in student can only write their own profile photo.
+//
+// The backend uploads with the Admin SDK (utils/adminStorage.js), which these
+// rules do not apply to.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isStaff() {
+      return request.auth != null && request.auth.token.role in ['admin', 'superadmin'];
+    }
+
+    // Everything readable by link; staff may write anywhere.
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // A student's own profile photo (the app writes users/<uid>).
+    match /users/{userId} {
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+    match /users/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
