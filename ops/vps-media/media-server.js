@@ -346,6 +346,28 @@ const server = http.createServer(async (req, res) => {
       const items = await readTrash();
       return send(res, 200, { status: "ok", data: { items, days: TRASH_DAYS } });
     }
+    // Delete for good (frees the disk space now instead of after TRASH_DAYS).
+    if (req.method === "DELETE" && route === "/trash") {
+      const items = await readTrash();
+      let freed = 0;
+      for (const i of items) {
+        await fsp.rm(path.join(TRASH, i.file), { force: true });
+        freed += i.size || 0;
+      }
+      await writeTrash([]);
+      log("trash emptied by", who, items.length, "files", freed, "bytes");
+      return send(res, 200, { status: "ok", data: { removed: items.length, freed } });
+    }
+    const forever = route.match(/^\/trash\/([a-f0-9]{16})$/);
+    if (req.method === "DELETE" && forever) {
+      const items = await readTrash();
+      const item = items.find((i) => i.id === forever[1]);
+      if (!item) return fail(res, 404, "Not in the trash");
+      await fsp.rm(path.join(TRASH, item.file), { force: true });
+      await writeTrash(items.filter((i) => i.id !== item.id));
+      log("deleted for good", item.path, "by", who);
+      return send(res, 200, { status: "ok", data: { removed: 1, freed: item.size || 0 } });
+    }
     const restoreMatch = route.match(/^\/trash\/([a-f0-9]{16})\/restore$/);
     if (req.method === "POST" && restoreMatch) {
       return send(res, 200, { status: "ok", data: { path: await restore(restoreMatch[1]) } });
