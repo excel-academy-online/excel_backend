@@ -76,6 +76,7 @@ const MOUNTS = [
   ["/api/roles", "../routes/roles.routes"],
   ["/api/referrals", "../routes/referral.routes"],
   ["/api/notifications", "../routes/notification.routes"],
+  ["/api/ops", "../routes/ops.routes"],
 ];
 
 const AUTH_NAMES = ["requireAuth", "requireRoleMiddleware", "requireSelfOrAdminMiddleware"];
@@ -91,6 +92,8 @@ const ALLOW_ANONYMOUS = new Set([
   "POST /api/admin/login",
   // Authenticated by Paystack's HMAC signature rather than a user token.
   "POST /api/payment/webhook",
+  // Nightly backup: checked against the shared MEDIA_SERVER_KEY instead.
+  "POST /api/ops/backup",
   // A static "payment received" page; it grants nothing.
   "GET /api/payment/callback",
   // Profile photos are loaded by <img>/Image.network, which send no token.

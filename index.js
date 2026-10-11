@@ -126,6 +126,8 @@ app.use("/api/admin-chat", adminChatRouter);
 app.use("/api/roles", rolesRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/referrals", referralRouter);
+// Nightly database backup, triggered by the VPS (shared-key auth).
+app.use("/api/ops", require("./routes/ops.routes"));
 // Home screen rows. Public; signed-in students get personal recommendations.
 app.get("/api/course-sections", optionalAuth, CourseSections);
 
