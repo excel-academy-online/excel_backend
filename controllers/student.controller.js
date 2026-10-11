@@ -256,7 +256,7 @@ module.exports.getStudentDetail = catchAsync(async (req, res, next) => {
 // isn't staff. Admin SDK, cached briefly: the dashboard asks several times.
 let studentsCache = null;
 module.exports.GetAllStudents = catchAsync(async (req, res) => {
-  const { db } = require("../firebaseadminvar");
+  const { db, admin } = require("../firebaseadminvar");
   if (!studentsCache || Date.now() - studentsCache.at > 30 * 1000) {
     const [snap, enrolSnap] = await Promise.all([db.collection("users").get(), db.collection("enrollments").get()]);
     // Enrolments live in their own collection; the old per-user
@@ -266,18 +266,40 @@ module.exports.GetAllStudents = catchAsync(async (req, res) => {
       const e = d.data();
       (byStudent[e.student_id] = byStudent[e.student_id] || []).push(e.course_id);
     });
+    // Many profiles were saved without a name (Google/phone sign-ups, and
+    // empty records the app created), so the dashboard showed "Unnamed
+    // student". The sign-in account usually has the name, email, photo and
+    // sign-up date; fill the gaps from it. Records whose sign-in account was
+    // deleted and that hold nothing are left out.
+    const auth = {};
+    const missing = snap.docs.filter((d) => {
+      const u = d.data();
+      return !(u.name || u.username) || !u.email || !(u.dateCreated || u.datecreated);
+    });
+    for (let i = 0; i < missing.length; i += 100) {
+      const got = await admin.auth().getUsers(missing.slice(i, i + 100).map((d) => ({ uid: d.id }))).catch(() => null);
+      (got ? got.users : []).forEach((a) => (auth[a.uid] = a));
+    }
+    const missingIds = new Set(missing.map((d) => d.id));
     studentsCache = {
       at: Date.now(),
-      docs: snap.docs.map((d) => {
-        const u = d.data();
-        const uid = u.id || d.id;
-        return {
-          ...u,
-          id: uid,
-          name: u.name || u.username || u.displayName || (u.email || "").split("@")[0] || "",
-          enrolledCourses: byStudent[uid] || byStudent[d.id] || u.enrolledCourses || [],
-        };
-      }),
+      docs: snap.docs
+        .filter((d) => !(missingIds.has(d.id) && !auth[d.id] && !d.data().name && !d.data().email))
+        .map((d) => {
+          const u = d.data();
+          const a = auth[d.id] || {};
+          const uid = u.id || d.id;
+          const email = u.email || a.email || "";
+          return {
+            ...u,
+            id: uid,
+            email,
+            dp: u.dp || a.photoURL || null,
+            datecreated: u.dateCreated || u.datecreated || (a.metadata && a.metadata.creationTime) || u.createdAt || null,
+            name: u.name || u.username || u.displayName || a.displayName || email.split("@")[0] || "",
+            enrolledCourses: byStudent[uid] || byStudent[d.id] || u.enrolledCourses || [],
+          };
+        }),
     };
   }
   const allUsers = studentsCache.docs.filter((u) => u.type !== "admin" && u.admin !== true);

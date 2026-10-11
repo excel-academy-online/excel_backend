@@ -79,6 +79,20 @@ module.exports.ListConversations = catchAsync(async (req, res) => {
   const snap = await q.orderBy("lastMessageAt", "desc").limit(size).get();
 
   const conversations = snap.docs.map(shapeConversation);
+  // Threads saved without the student's name showed as "Student"; fill it
+  // from their sign-in account.
+  const nameless = conversations.filter((c) => !c.studentName || !c.studentEmail);
+  if (nameless.length) {
+    const { admin } = require("../firebaseadminvar");
+    const got = await admin.auth().getUsers(nameless.slice(0, 100).map((c) => ({ uid: c.studentUid }))).catch(() => null);
+    const byUid = Object.fromEntries((got ? got.users : []).map((u) => [u.uid, u]));
+    for (const c of nameless) {
+      const u = byUid[c.studentUid];
+      if (!u) continue;
+      c.studentEmail = c.studentEmail || u.email || null;
+      c.studentName = c.studentName || u.displayName || (u.email ? u.email.split("@")[0] : null);
+    }
+  }
   res.status(200).json({
     status: "ok",
     message: "Conversations fetched successfully",
