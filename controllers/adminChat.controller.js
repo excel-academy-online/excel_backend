@@ -175,7 +175,7 @@ exports.Send = catchAsync(async (req, res) => {
       type: "activities",
       title: t.iAmAdmin ? `${me.name} replied to you` : `New message from ${me.name}${groupTitle ? ` (${groupTitle})` : ""}`,
       body: body.length > 140 ? body.slice(0, 137) + "..." : body,
-      data: { screen: "admin_chat", withUid: req.uid },
+      data: { screen: "admin_chat", withUid: req.uid, withName: me.name || "", groupTitle: groupTitle || "" },
     })
     .catch(() => {});
 

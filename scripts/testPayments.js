@@ -59,6 +59,14 @@ const db = {
     const ops = [];
     return { set: (r, d, o) => ops.push([r, d, o]), async commit() { for (const [r, d, o] of ops) await r.set(d, o); } };
   },
+  // Single-threaded fake: reads see the store, writes apply on commit.
+  async runTransaction(fn) {
+    const ops = [];
+    const tx = { get: (r) => r.get(), set: (r, d, o) => ops.push([r, d, o]) };
+    const out = await fn(tx);
+    for (const [r, d, o] of ops) await r.set(d, o);
+    return out;
+  },
 };
 
 let paystackVerify = { status: "success", amount: 1200000, currency: "NGN" };

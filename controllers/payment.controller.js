@@ -92,8 +92,23 @@ async function fulfil(reference, paid) {
   const snap = await ref.get();
   if (!snap.exists) throw new AppError("Unknown payment reference", 404);
 
-  const payment = snap.data();
+  let payment = snap.data();
   if (payment.status === "success") return { payment, alreadyDone: true };
+
+  // The app, the webhook and the callback page usually confirm the same
+  // payment at the same moment. Only the first one in does the work (and
+  // sends the "Payment confirmed" notification); a claim older than 2
+  // minutes is treated as abandoned so a crash can't leave it stuck.
+  const claimed = await db.runTransaction(async (tx) => {
+    const cur = (await tx.get(ref)).data();
+    if (cur.status === "success") return null;
+    const at = cur.fulfillingAt ? Date.parse(cur.fulfillingAt) : 0;
+    if (at && Date.now() - at < 2 * 60 * 1000) return null;
+    tx.set(ref, { fulfillingAt: new Date().toISOString() }, { merge: true });
+    return cur;
+  });
+  if (!claimed) return { payment: { ...payment, status: "success" }, alreadyDone: true };
+  payment = claimed;
 
   // Paystack reports kobo. The price we asked for must have been paid, or
   // someone has tampered with the checkout. When the account passes Paystack's
@@ -102,7 +117,7 @@ async function fulfil(reference, paid) {
   const asked = Number(payment.amountKobo);
   const requested = Number(paid.requested_amount ?? paid.amount);
   if (requested !== asked || Number(paid.amount) < asked || paid.currency !== "NGN") {
-    await ref.set({ status: "amount_mismatch", paystack: { amount: paid.amount, currency: paid.currency } }, { merge: true });
+    await ref.set({ status: "amount_mismatch", fulfillingAt: null, paystack: { amount: paid.amount, currency: paid.currency } }, { merge: true });
     throw new AppError("Payment amount does not match the order", 400);
   }
 
@@ -151,7 +166,12 @@ async function fulfil(reference, paid) {
     },
     { merge: true }
   );
-  batch.set(ref, { status: "success", verifiedAt: now }, { merge: true });
+  // What Paystack actually charged (price + any fee), for the dashboard.
+  batch.set(ref, {
+    status: "success",
+    verifiedAt: now,
+    paystack: { amount: paid.amount, currency: paid.currency, channel: paid.channel || null, paidAt: paid.paid_at || now },
+  }, { merge: true });
   await batch.commit();
   await settleBonus(payment);
   await creditReferral(payment.uid);

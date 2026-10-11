@@ -277,7 +277,7 @@ exports.PostMessage = catchAsync(async (req, res) => {
         type: "activities",
         title: `${name} replied to you in ${g.title || "your study group"}`,
         body: preview.length > 120 ? preview.slice(0, 117) + "..." : preview,
-        data: { screen: "community", groupId: ref.id },
+        data: { screen: "community", groupId: ref.id, groupTitle: g.title || "", messageId: msg.id },
       })
       .catch(() => {});
   }
