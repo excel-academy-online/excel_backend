@@ -1619,14 +1619,27 @@ module.exports.createProgramCourse = catchAsync(async (req, res, next) => {
     price,
     cancelPrice,
     level,
+    program,
   } = req.body;
 
   if (!user_id) {
     return next(new AppError("userid is required", 403));
   }
 
-  if (!price || !title || !level) {
+  // The programme code (ICAN, ACCA...) is what files the course under its
+  // programme in the app; without it only a matching title prefix would.
+  const { CODES, PROGRAMMES } = require("../utils/programmes");
+  const programCode = String(program || "").trim().toUpperCase();
+  if (programCode && !CODES.has(programCode)) {
+    return next(new AppError(`Unknown programme "${program}"`, 400));
+  }
+  // A level is needed only where the programme has levels (ANAN, CPA... don't).
+  const programLevels = (PROGRAMMES.find((p) => p.code === programCode) || { levels: [] }).levels;
+  if (!price || !title || (!level && programLevels.length)) {
     return next(new AppError("All fields are required", 403));
+  }
+  if (level && programLevels.length && !programLevels.includes(String(level).trim().toUpperCase())) {
+    return next(new AppError(`"${level}" is not a ${programCode} level`, 400));
   }
 
   if (!req.file) {
@@ -1673,7 +1686,8 @@ module.exports.createProgramCourse = catchAsync(async (req, res, next) => {
         instructor: user_id,
         id: courseRef.id,
         programId: program_id,
-        level: level,
+        program: programCode,
+        level: String(level || "").trim().toUpperCase(),
         assignment: [],
         quiz: [],
         lesson: [],

@@ -79,6 +79,11 @@ router.get("/getEnrolledCoursesWithProgress", ...requireAdmin, getEnrolledCourse
 // Roster of everyone on a course - staff information.
 router.get("/getEnrolledStudentsByCourseId", ...requireAdmin, getEnrolledStudentsByCourseId);
 
+// Programmes as the app shows them, and editing a course's listing.
+const courseAdmin = require("../controllers/courseAdmin.controller");
+router.get("/programmes", ...requireAdmin, courseAdmin.ListProgrammes);
+router.patch("/:courseId/edit", ...requireAdmin, courseAdmin.UpdateCourse);
+
 // Course reviews: anyone reads, enrolled students write their own.
 const reviews = require("../controllers/review.controller");
 router.get("/:courseId/reviews", optionalAuth, reviews.ListReviews);
