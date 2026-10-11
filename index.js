@@ -93,6 +93,18 @@ app.get("/health", (req, res) =>
   res.status(200).json({ status: "ok", uptime: process.uptime() })
 );
 
+// The app's course catalogue is cached (it was re-read from Firestore every
+// minute). Any successful change to courses - on these routes - clears it at
+// once, so students never see a stale catalogue.
+app.use(["/api/course", "/api/dashboard", "/api/videos", "/api/create-course", "/api/course-upload"], (req, res, next) => {
+  if (req.method !== "GET") {
+    res.on("finish", () => {
+      if (res.statusCode < 400) require("./controllers/course.controller")._resetCatalogueCache();
+    });
+  }
+  next();
+});
+
 app.use("/api", videoRouter);
 app.use("/api/auth", userRouter);
 app.use("/api/admin", adminRouter);

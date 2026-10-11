@@ -1883,10 +1883,11 @@ module.exports.GetCourseDetails = catchAsync(async (req, res, next) => {
   });
 });
 
-// Every app launch asks for the catalogue. Reading all 128 course documents
-// from Firestore each time made it slow; the catalogue changes rarely, so
-// it's kept for a minute.
-const CATALOGUE_TTL_MS = 60 * 1000;
+// Every app launch asks for the catalogue. Reading every course document
+// each time was slow and used up Firestore's free daily reads, so it's kept
+// for 15 minutes - and cleared the moment staff change a course (index.js
+// and courseAdmin), so it is never stale.
+const CATALOGUE_TTL_MS = 15 * 60 * 1000;
 let catalogueCache = null;
 async function allCoursesCached() {
   if (catalogueCache && Date.now() - catalogueCache.at < CATALOGUE_TTL_MS) return catalogueCache.data;
@@ -1894,7 +1895,11 @@ async function allCoursesCached() {
   catalogueCache = { at: Date.now(), data };
   return data;
 }
-module.exports._resetCatalogueCache = () => { catalogueCache = null; };
+module.exports._resetCatalogueCache = () => {
+  catalogueCache = null;
+  // "Popular / new" lists are built from the same courses.
+  require("./discover.controller")._resetCache();
+};
 
 module.exports.GetAllCourses = catchAsync(async (req, res, next) => {
   if (courseRepo.source !== "firestore") {

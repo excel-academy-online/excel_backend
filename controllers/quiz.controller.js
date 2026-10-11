@@ -38,22 +38,17 @@ const now = () => new Date().toISOString();
  * was often missing, so boards showed email prefixes; the profile in
  * `users` has the real name. Cached briefly.
  */
-let profilesCache = null;
-async function profiles() {
-  if (profilesCache && Date.now() - profilesCache.at < 5 * 60 * 1000) return profilesCache.map;
-  const snap = await db.collection("users").get();
-  const map = {};
-  snap.docs.forEach((d) => {
-    const u = d.data();
-    const entry = { name: u.name || u.username || u.displayName || "", photo: u.dp || u.photoUrl || null };
-    map[d.id] = entry;
-    if (u.id) map[u.id] = entry;
-  });
-  profilesCache = { at: Date.now(), map };
-  return map;
+// Only the people shown are read, each kept 15 minutes (utils/profileCache.js);
+// this used to read every user every 5 minutes.
+const profileCache = require("../utils/profileCache");
+async function profiles(ids) {
+  const raw = await profileCache.profiles(ids);
+  return Object.fromEntries(
+    Object.entries(raw).map(([id, u]) => [id, { name: u.name || u.username || u.displayName || "", photo: u.dp || u.photoUrl || null }])
+  );
 }
 async function nameFor(req) {
-  const p = (await profiles().catch(() => ({})))[req.uid];
+  const p = (await profiles([req.uid]).catch(() => ({})))[req.uid];
   return (p && p.name) || displayName(req);
 }
 
@@ -344,7 +339,7 @@ exports.Leaderboard = catchAsync(async (req, res) => {
   // have been played.
   if (!span) {
     const top = await db.collection("quizTotals").orderBy("points", "desc").limit(50).get();
-    const prof = await profiles().catch(() => ({}));
+    const prof = await profiles(top.docs.map((d) => d.id)).catch(() => ({}));
     const entries = top.docs.map((d, i) => ({
       rank: i + 1, uid: d.id, name: (prof[d.id] || {}).name || d.data().name, photo: (prof[d.id] || {}).photo || null,
       points: d.data().points, movedUp: true,
@@ -360,10 +355,10 @@ exports.Leaderboard = catchAsync(async (req, res) => {
   }
 
   const nowMs = Date.now();
-  const prof = await profiles().catch(() => ({}));
   const all = (await db.collection("quizResults").where("createdAt", ">=", new Date(nowMs - 2 * span).toISOString()).get())
     .docs.map((d) => d.data());
   const current = all.filter((r) => Date.parse(r.createdAt) >= nowMs - span);
+  const prof = await profiles(current.map((r) => r.uid)).catch(() => ({}));
   const previous = rank(all.filter((r) => Date.parse(r.createdAt) < nowMs - span));
   const prevRank = Object.fromEntries(previous.map((e) => [e.uid, e.rank]));
 

@@ -30,25 +30,23 @@ const repliesOpen = (g) => g.allow_replies === true || g.allow_replies === "true
 const baseUrl = (req) =>
   (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
 
-let usersCache = null;
-async function people() {
-  if (usersCache && Date.now() - usersCache.at < 5 * 60 * 1000) return usersCache.map;
-  const snap = await db.collection("users").get();
-  const map = {};
-  snap.docs.forEach((d) => {
-    const u = d.data();
-    const entry = {
-      name: u.name || u.username || (u.email || "").split("@")[0] || "Student",
-      email: u.email || "",
-      photo: u.dp || null,
-      staff: u.type === "admin" || u.admin === true,
-    };
-    map[d.id] = entry;
-    if (u.id) map[u.id] = entry;
-  });
-  usersCache = { at: Date.now(), map };
-  return map;
+const personOf = (u = {}) => ({
+  name: u.name || u.username || (u.email || "").split("@")[0] || "Student",
+  email: u.email || "",
+  photo: u.dp || null,
+  staff: u.type === "admin" || u.admin === true,
+});
+
+/**
+ * Names and photos of the given people (only those are read, each kept for
+ * 15 minutes - see utils/profileCache.js).
+ */
+const profileCache = require("../utils/profileCache");
+async function people(ids = []) {
+  const raw = await profileCache.profiles(ids);
+  return Object.fromEntries(Object.entries(raw).map(([id, u]) => [id, personOf(u)]));
 }
+const refreshPerson = (uid) => profileCache.refresh(uid);
 
 const liveMessages = (g) => (g.msg || []).filter((m) => Number(m.status ?? 1) === 1);
 
@@ -141,8 +139,8 @@ async function loadGroup(id, { any = false } = {}) {
 /** GET /api/community/groups/:id/messages - oldest first, with author names. */
 exports.ListMessages = catchAsync(async (req, res) => {
   const { snap } = await loadGroup(req.params.id);
-  const who = await people();
   const all = liveMessages(snap.data());
+  const who = await people(all.map((m) => m.sender));
   const byId = Object.fromEntries(all.map((m) => [m.id, m]));
   const messages = all.map((m) => {
     const author = who[m.sender] || {};
@@ -267,9 +265,11 @@ exports.PostMessage = catchAsync(async (req, res) => {
       { merge: true }
     );
   });
+  // The poster's name/photo may have just changed; others see it at once.
+  await refreshPerson(req.uid).catch(() => {});
   // Tell the person being replied to (push + in-app notification).
   if (msg.replyTo && msg.replyTo.sender && msg.replyTo.sender !== req.uid) {
-    const who = await people();
+    const who = await people([req.uid]);
     const name = (who[req.uid] || {}).name || "Someone";
     const preview = text || (media ? (media.type === "application/pdf" ? "sent a PDF" : "sent a photo") : "");
     require("./notification.controller")
@@ -318,7 +318,7 @@ exports.DeleteMessage = catchAsync(async (req, res) => {
 exports.ListMembers = catchAsync(async (req, res) => {
   const { snap } = await loadGroup(req.params.id, { any: true });
   const g = snap.data();
-  const who = await people();
+  const who = await people([...membersOf(g), ...(g.removedStudent || []), ...liveMessages(g).map((m) => m.sender)]);
   const posts = {};
   liveMessages(g).forEach((m) => (posts[m.sender] = (posts[m.sender] || 0) + 1));
   const row = (uid, banned) => ({
@@ -372,7 +372,7 @@ exports.StudentMembers = catchAsync(async (req, res) => {
   const { snap } = await loadGroup(req.params.id);
   const g = snap.data();
   const banned = new Set(g.removedStudent || []);
-  const who = await people();
+  const who = await people(membersOf(g));
   const posts = {};
   liveMessages(g).forEach((m) => (posts[m.sender] = (posts[m.sender] || 0) + 1));
   const data = membersOf(g)
@@ -422,7 +422,7 @@ exports.SaveDetails = catchAsync(async (req, res) => {
 exports.GetDetails = catchAsync(async (req, res) => {
   const { snap } = await loadGroup(req.params.id, { any: true });
   const g = snap.data();
-  const who = await people();
+  const who = await people([...membersOf(g), (g.groupAdmin || {}).uid, g.userId]);
   res.status(200).json({
     status: "ok",
     message: "Group details",
