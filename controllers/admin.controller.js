@@ -44,7 +44,7 @@ const {
   getDocs,
   doc,
   setDoc,
-} = require("firebase/firestore");
+} = require("../utils/adminFirestore");
 const { log } = require("console");
 const firestore = getFirestore();
 

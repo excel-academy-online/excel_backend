@@ -4,7 +4,7 @@ const catchAsync = require("../utils/errors/catchAsync");
 
 const { admin, serviceAccount, firebaseConfig } = require('../firebaseadminvar');
 
-const { getFirestore, collection, getDoc, doc, setDoc, getDocs, where, query } = require("firebase/firestore");
+const { getFirestore, collection, getDoc, doc, setDoc, getDocs, where, query } = require("../utils/adminFirestore");
 const {
     getStorage,
     ref,

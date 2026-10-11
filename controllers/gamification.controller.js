@@ -24,7 +24,7 @@ const {
   startAfter,
   query,
   updateDoc,
-} = require("firebase/firestore");
+} = require("../utils/adminFirestore");
 const upload = require("../utils/multer");
 
 const Modules = require("../models/modules.schema");

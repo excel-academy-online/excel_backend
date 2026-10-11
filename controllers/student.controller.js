@@ -17,7 +17,7 @@ const {
   query,
   updateDoc,
   addDoc,
-} = require("firebase/firestore");
+} = require("../utils/adminFirestore");
 const {
   getStorage,
   ref,

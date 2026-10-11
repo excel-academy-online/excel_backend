@@ -61,17 +61,20 @@ router.get("/getAllCourses", optionalAuth, getAllCourses);
 router.get("/searchCourses", optionalAuth, searchCourses);
 router.get("/getAllFaq", optionalAuth, getAllFaq);
 
-// --- Enrolled-student surface ------------------------------------------
-// Lesson bodies, quizzes and exams are the paid product; never anonymous.
-router.get("/getCoursesLessons", requireAuth, getCoursesLessons);
-router.get("/getAllQuiz", requireAuth, getQuiz);
-router.get("/getExams", requireAuth, getExams);
-router.get("/getExamsByType", requireAuth, getExamsByType);
-router.post("/enrollCourse", requireAuth, enrollCourse);
-router.post("/updateCourseProgress", requireAuth, updateCourseProgress);
-router.get("/getEnrolledCourses", requireAuth, getEnrolledCourses);
-router.get("/getEnrolledCoursesByStudentId", requireAuth, getEnrolledCoursesByStudentId);
-router.get("/getEnrolledCoursesWithProgress", requireAuth, getEnrolledCoursesWithProgress);
+// --- Old enrolled-student surface (dashboard only now) ------------------
+// These take any course/student id and return the paid product (lessons,
+// answers) or other students' data, so they are staff only. The app uses
+// /get-course-details, /students/* and /mock-exams instead.
+router.get("/getCoursesLessons", ...requireAdmin, getCoursesLessons);
+router.get("/getAllQuiz", ...requireAdmin, getQuiz);
+router.get("/getExams", ...requireAdmin, getExams);
+router.get("/getExamsByType", ...requireAdmin, getExamsByType);
+// Enrols without payment - staff only.
+router.post("/enrollCourse", ...requireAdmin, enrollCourse);
+router.post("/updateCourseProgress", ...requireAdmin, updateCourseProgress);
+router.get("/getEnrolledCourses", ...requireAdmin, getEnrolledCourses);
+router.get("/getEnrolledCoursesByStudentId", ...requireAdmin, getEnrolledCoursesByStudentId);
+router.get("/getEnrolledCoursesWithProgress", ...requireAdmin, getEnrolledCoursesWithProgress);
 
 // Roster of everyone on a course - staff information.
 router.get("/getEnrolledStudentsByCourseId", ...requireAdmin, getEnrolledStudentsByCourseId);

@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// The backend uses the Admin SDK, which ignores these rules. Only the app
+// talks to Firestore directly, and only to the signed-in student's own
+// profile (users/{uid}): created at sign-up, edited in Manage profile.
+// Everything else - courses, enrolments, payments, chats - goes through the API.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function profileFields() {
+      return ['name', 'username', 'phoneNumber', 'datecreated', 'dp', 'email', 'gender', 'dateOfBirth'];
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(profileFields());
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileFields());
+    }
+
+    // Everything else: server only.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

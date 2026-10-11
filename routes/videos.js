@@ -27,6 +27,7 @@ router.get("/search", optionalAuth, SearchCourse);
 
 // --- Paid content -------------------------------------------------------
 // Decrypting a video hands over purchased material; this one is never public.
-router.get("/decrypt", requireAuth, PlayDecryptVideo);
+// Fetches whatever URL it is given from the server - staff only (unused by the app).
+router.get("/decrypt", ...requireAdmin, PlayDecryptVideo);
 
 module.exports = router;

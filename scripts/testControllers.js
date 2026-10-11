@@ -72,7 +72,7 @@ Module._load = function (req, parent, isMain) {
   if (req.indexOf("firebaseadminvar") !== -1)
     return { admin: adminStub, serviceAccount: { project_id: "stub" }, firebaseConfig: cfg, db: {}, auth: adminStub.auth(), bucket: {} };
   if (req === "firebase-admin") return adminStub;
-  if (req === "firebase/firestore") return clientFirestore;
+  if (req === "firebase/firestore" || /adminFirestore$/.test(req)) return clientFirestore;
   if (req === "firebase/app") return { initializeApp: () => ({}) };
   if (req === "firebase/storage") return { getStorage: () => ({}), ref: () => ({}), uploadBytesResumable: () => ({}), getDownloadURL: async () => "http://x" };
   return origLoad.call(this, req, parent, isMain);

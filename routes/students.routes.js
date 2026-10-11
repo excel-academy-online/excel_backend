@@ -11,7 +11,8 @@ const sd = require("../controllers/studentData.controller");
 const router = require("express").Router();
 require("dotenv").config();
 
-router.post("/enroll", requireAuth, enrollCourse);
+// Enrols without payment - staff only (students enrol via payment or enroll-free).
+router.post("/enroll", ...requireAdmin, enrollCourse);
 
 // Restoring pre-migration purchases. The email comes from the verified token,
 // so a student can only ever claim their own.

@@ -29,11 +29,11 @@ router.delete("/deleteCommunityPost", ...requireAdmin, DeleteCommunityPost);
 // NOTE: DeleteComment/EditComment must additionally check that the caller owns
 // the comment - that ownership test belongs in the controller, which currently
 // takes the author id from the request body. Flagged in AUDIT.md.
-router.post("/postComment", requireAuth, upload.array("media"), PostComment);
-router.post("/deleteComment", requireAuth, DeleteComment);
-router.post("/editComment", requireAuth, EditComment);
-router.get("/getCommunity", requireAuth, GetCommunityPost);
-router.get("/fetchAllComments", requireAuth, FetchAllComments);
+router.post("/postComment", ...requireAdmin, upload.array("media"), PostComment);
+router.post("/deleteComment", ...requireAdmin, DeleteComment);
+router.post("/editComment", ...requireAdmin, EditComment);
+router.get("/getCommunity", ...requireAdmin, GetCommunityPost);
+router.get("/fetchAllComments", ...requireAdmin, FetchAllComments);
 
 // Students: the dashboard's published groups; the author is the signed-in user.
 const sc = require("../controllers/studentCommunity.controller");

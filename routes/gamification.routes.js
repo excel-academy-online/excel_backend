@@ -24,10 +24,10 @@ router.post("/createGamificationNewMultipleQst", ...requireAdmin, upload.array("
 
 // --- Playing: any signed-in student ------------------------------------
 // Questions carry answers, so these are not public.
-router.get("/getAllActiveGames", requireAuth, GetAllActiveGames);
-router.get("/getGamesByProgramId", requireAuth, GetGamesByProgramId);
-router.get("/getAllActiveGamesPaginated", requireAuth, GetPaginatedGames);
-router.get("/searchGamification", requireAuth, searchGamification);
+router.get("/getAllActiveGames", ...requireAdmin, GetAllActiveGames);
+router.get("/getGamesByProgramId", ...requireAdmin, GetGamesByProgramId);
+router.get("/getAllActiveGamesPaginated", ...requireAdmin, GetPaginatedGames);
+router.get("/searchGamification", ...requireAdmin, searchGamification);
 
 // Unpublished/draft questions are staff-only.
 router.get("/getAllNonActiveGames", ...requireAdmin, GetAllNonActiveGames);

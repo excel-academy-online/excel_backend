@@ -20,7 +20,8 @@ router.post("/register", ...requireAdmin, upload.single("picture"), AdminRegiste
 router.post("/login", StrictLimiter, AdminLogin);
 
 router.post("/resetpassword", StrictLimiter, requireAuth, AdminChangePassword);
-router.post("/updateProfile", requireAuth, EditProfile);
+// Takes any user_id from the body, so staff only (the dashboard is the only caller).
+router.post("/updateProfile", ...requireAdmin, EditProfile);
 router.patch("/logout", requireAuth, AdminLogOut);
 router.get("/search", ...requireAdmin, require("../controllers/adminTools.controller").SearchEverything);
 

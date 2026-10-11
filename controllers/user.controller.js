@@ -25,7 +25,7 @@ const {
   getDocs,
   doc,
   setDoc,
-} = require("firebase/firestore");
+} = require("../utils/adminFirestore");
 const firebaseConfig = require("../utils/firebase.config");
 const User = require("../models/user.model");
 const catchAsync = require("../utils/errors/catchAsync");

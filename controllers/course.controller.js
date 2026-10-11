@@ -21,7 +21,7 @@ const {
   where,
   query,
   updateDoc,
-} = require("firebase/firestore");
+} = require("../utils/adminFirestore");
 const upload = require("../utils/multer");
 
 const Modules = require("../models/modules.schema");
@@ -2014,10 +2014,14 @@ module.exports.searchCourses = catchAsync(async (req, res, next) => {
       });
     }
 
-    // Collect search results
+    // Collect search results. This route is public, so lessons (video links)
+    // and quiz/exam answers are left out for anyone who isn't staff.
+    const isStaff = ["admin", "superadmin"].includes(req.role);
     const searchResults = [];
     querySnapshot.forEach((doc) => {
-      searchResults.push(doc.data());
+      const data = doc.data();
+      if (!isStaff) for (const k of ["lesson", "lessons", "quiz", "exams", "assignment"]) delete data[k];
+      searchResults.push(data);
     });
 
     res.status(200).json({
