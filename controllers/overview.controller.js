@@ -7,13 +7,15 @@
  */
 const { db } = require("../firebaseadminvar");
 const catchAsync = require("../utils/errors/catchAsync");
+const { programmeOf } = require("../utils/programmes");
 
 const count = async (q) => (await q.count().get()).data().count;
 
 exports.Overview = catchAsync(async (req, res) => {
-  const [programs, courses, students, enrolments, questions, games, openChats, orders, payouts] = await Promise.all([
-    count(db.collection("programs").where("status", "==", 1)),
-    count(db.collection("courses").where("status", "==", 1)),
+  const [liveCourses, students, enrolments, questions, games, openChats, orders, payouts] = await Promise.all([
+    // Programmes are the ones the app shows (ICAN, ACCA...) that have a
+    // published course - not the old programs collection.
+    db.collection("courses").where("status", "==", 1).get(),
     // Students only: staff accounts are users too.
     db.collection("users").get().then((s) => s.docs.filter((d) => d.data().type !== "admin" && d.data().admin !== true).length),
     count(db.collection("enrollments")),
@@ -23,6 +25,9 @@ exports.Overview = catchAsync(async (req, res) => {
     db.collection("orders").where("status", "==", "completed").get(),
     db.collection("payouts").where("status", "==", "pending").get(),
   ]);
+
+  const courses = liveCourses.size;
+  const programs = new Set(liveCourses.docs.map((d) => programmeOf({ id: d.id, ...d.data() })).filter(Boolean)).size;
 
   // Revenue by month for the last 12 months (NGN), oldest first.
   const byMonth = {};
