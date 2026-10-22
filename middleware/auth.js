@@ -64,6 +64,22 @@ async function requireAuth(req, res, next) {
     }
     return next(new AppError("Invalid authentication token", 401));
   }
+  // One device per student: a phone that doesn't hold the account is turned
+  // away (code "device_in_use" so the app can sign out and explain).
+  const deviceId = req.headers["x-device-id"];
+  if (deviceId && !ADMIN_ROLES.includes(req.role) && !req.originalUrl.includes("/students/session")) {
+    try {
+      if (!(await require("../utils/deviceSessions").allowed(req.uid, deviceId))) {
+        return res.status(409).json({
+          status: "fail",
+          code: "device_in_use",
+          message: "This account is signed in on another device. Log out there first, or ask Excel Academy to sign it out.",
+        });
+      }
+    } catch {
+      // Never lock students out because the check itself failed.
+    }
+  }
   next();
 }
 

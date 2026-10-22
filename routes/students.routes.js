@@ -14,6 +14,13 @@ require("dotenv").config();
 // Enrols without payment - staff only (students enrol via payment or enroll-free).
 router.post("/enroll", ...requireAdmin, enrollCourse);
 
+// One device per student account (utils/deviceSessions.js).
+const device = require("../controllers/deviceSession.controller");
+router.post("/session/claim", requireAuth, device.Claim);
+router.post("/session/release", requireAuth, device.Release);
+router.get("/:uid/device", ...requireAdmin, device.GetDevice);
+router.delete("/:uid/device", ...requireAdmin, device.ForceRelease);
+
 // Restoring pre-migration purchases. The email comes from the verified token,
 // so a student can only ever claim their own.
 router.get("/recovery", requireAuth, CheckRecovery);

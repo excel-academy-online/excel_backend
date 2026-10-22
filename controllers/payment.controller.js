@@ -57,6 +57,17 @@ const callbackBase = (req) =>
   (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "") ||
   (typeof req.get === "function" && req.get("host") ? `${req.protocol}://${req.get("host")}` : "");
 
+/** A website page to return to after Paystack, if it is on our own site. */
+const WEB_ORIGINS = ["https://excelacademyonline.com", "https://www.excelacademyonline.com", "http://localhost:5500"];
+const webReturn = (body = {}) => {
+  try {
+    const u = new URL(String(body.returnTo || ""));
+    return WEB_ORIGINS.includes(u.origin) ? u.toString() : "";
+  } catch {
+    return "";
+  }
+};
+
 const lessonCount = (c) => (c.lesson || []).reduce((n, s) => n + (s.content || []).length, 0);
 
 /*
@@ -272,7 +283,13 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
       metadata: { uid: req.uid, courseIds: toBuy.map((d) => d.id) },
       // Where Paystack sends the browser afterwards. The app's payment web view
       // closes itself when it sees this URL, then verifies the reference.
-      ...(callbackBase(req) ? { callback_url: `${callbackBase(req)}/api/payment/callback` } : {}),
+      // The website asks to come back to its own page (it confirms the
+      // payment there); only our own site is accepted, never another domain.
+      ...(webReturn(req.body)
+        ? { callback_url: webReturn(req.body) }
+        : callbackBase(req)
+          ? { callback_url: `${callbackBase(req)}/api/payment/callback` }
+          : {}),
     });
   } catch (err) {
     await db.collection(PAYMENTS).doc(reference).set({ status: "init_failed" }, { merge: true });
