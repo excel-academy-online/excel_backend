@@ -63,7 +63,9 @@ const WEB_ORIGINS = [
   ...String(process.env.WEB_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean),
 ];
 // The website's Vercel addresses (production and preview deployments).
-const VERCEL_WEB = /^https:\/\/excel-academy-web(-[a-z0-9-]+)?\.vercel\.app$/;
+// Only our project (excel-academy-website); excel-academy-web.vercel.app is
+// someone else's site.
+const VERCEL_WEB = /^https:\/\/excel-academy-website(-[a-z0-9-]+)?\.vercel\.app$/;
 const webReturn = (body = {}) => {
   try {
     const u = new URL(String(body.returnTo || ""));
