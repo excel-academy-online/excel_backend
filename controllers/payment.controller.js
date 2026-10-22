@@ -58,11 +58,16 @@ const callbackBase = (req) =>
   (typeof req.get === "function" && req.get("host") ? `${req.protocol}://${req.get("host")}` : "");
 
 /** A website page to return to after Paystack, if it is on our own site. */
-const WEB_ORIGINS = ["https://excelacademyonline.com", "https://www.excelacademyonline.com", "http://localhost:5500"];
+const WEB_ORIGINS = [
+  "https://excelacademyonline.com", "https://www.excelacademyonline.com", "http://localhost:5500", "http://localhost:3000",
+  ...String(process.env.WEB_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean),
+];
+// The website's Vercel addresses (production and preview deployments).
+const VERCEL_WEB = /^https:\/\/excel-academy-web(-[a-z0-9-]+)?\.vercel\.app$/;
 const webReturn = (body = {}) => {
   try {
     const u = new URL(String(body.returnTo || ""));
-    return WEB_ORIGINS.includes(u.origin) ? u.toString() : "";
+    return WEB_ORIGINS.includes(u.origin) || VERCEL_WEB.test(u.origin) ? u.toString() : "";
   } catch {
     return "";
   }
