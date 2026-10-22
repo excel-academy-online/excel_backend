@@ -64,6 +64,8 @@ exports.UpdateCourse = catchAsync(async (req, res, next) => {
     patch.title = t.slice(0, 200);
   }
   if (b.description !== undefined) patch.description = String(b.description).slice(0, 5000);
+  // Instructor's name, shown on the course page in the app and website.
+  if (b.creator !== undefined) patch.creator = String(b.creator).trim().slice(0, 120);
   for (const k of ["price", "cancelPrice"]) {
     if (b[k] === undefined) continue;
     const n = Number(String(b[k]).replace(/[^0-9.]/g, ""));
