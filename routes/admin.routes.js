@@ -23,6 +23,8 @@ router.post("/resetpassword", StrictLimiter, requireAuth, AdminChangePassword);
 // Takes any user_id from the body, so staff only (the dashboard is the only caller).
 router.post("/updateProfile", ...requireAdmin, EditProfile);
 router.patch("/logout", requireAuth, AdminLogOut);
+// Who changed what on the dashboard (utils/adminLog.js).
+router.get("/activity", ...requireAdmin, (req, res, next) => require("../utils/adminLog").list(req, res).catch(next));
 router.get("/search", ...requireAdmin, require("../controllers/adminTools.controller").SearchEverything);
 
 module.exports = router;

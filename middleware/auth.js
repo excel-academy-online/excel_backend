@@ -113,9 +113,25 @@ function requireRole(...roles) {
         new AppError("You do not have permission to perform this action", 403)
       );
     }
+    if (ADMIN_ROLES.includes(req.role)) {
+      // Staff must have signed in within ADMIN_SESSION_HOURS: a stolen or
+      // forgotten session can't be used for days.
+      const signedInAt = Number(req.user.auth_time || 0) * 1000;
+      if (signedInAt && Date.now() - signedInAt > ADMIN_SESSION_HOURS * 3600 * 1000) {
+        return next(new AppError("For security, please sign in again (staff sessions last 12 hours).", 401));
+      }
+      // Every change staff make is recorded (who, what, when) - see adminLog.
+      if (req.method !== "GET") {
+        res.on("finish", () => {
+          require("../utils/adminLog").record(req, res.statusCode).catch(() => {});
+        });
+      }
+    }
     next();
   };
 }
+
+const ADMIN_SESSION_HOURS = 12;
 
 /**
  * Confirms the caller is acting on their own record, unless they are an admin.
