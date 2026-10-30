@@ -261,6 +261,12 @@ module.exports.InitializePayment = catchAsync(async (req, res, next) => {
   const total = toBuy.reduce((sum, d) => sum + toInt(d.data().price), 0);
   if (total <= 0) return next(new AppError("These courses have no price set", 400));
 
+  // Never take money for a course with nothing to watch yet.
+  const empty = toBuy.filter((d) => lessonCount(d.data()) === 0).map((d) => d.data().title || d.id);
+  if (empty.length) {
+    return next(new AppError(`${empty.join(", ")} ${empty.length === 1 ? "is" : "are"} coming soon - the lessons are still being uploaded.`, 409));
+  }
+
   const reference = `ea_${req.uid.slice(0, 8)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
   // Gift-box credit comes off the price (never below the minimum charge).
   const creditUsed = Math.min(await bonusBalance(req.uid), Math.max(0, total - MIN_CHARGE_NAIRA));

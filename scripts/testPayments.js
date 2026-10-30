@@ -26,7 +26,8 @@ const reset = () => {
       { id: "s1", session_name: "C1 Data", content: [
         { id: "i1", title: "(a) Data", medias: [{ type: "video", url: "https://v/a.mp4" }] },
         { id: "i2", title: "(b) Info", medias: [] } ] } ] },
-    "wp-43": { title: "Financial Reporting", price: "8,000", status: 1, lesson: [] },
+    "wp-43": { title: "Financial Reporting", price: "8,000", status: 1, lesson: [{ id: "s1", session_name: "C1", content: [{ id: "i1", title: "(a)", medias: [{ type: "video", url: "https://v/fr.mp4" }] }] }] },
+    "wp-50": { title: "Empty Course", price: "5000", status: 1, lesson: [] },
     "wp-99": { title: "Free thing", price: "", status: 1, lesson: [] },
   };
   store.enrollments = {}; store.payments = {}; store.orders = {};
@@ -178,6 +179,11 @@ const student = (uid, email = `${uid}@x.com`) => ({ uid, user: { email }, role: 
   await test("courses with no price cannot be bought for free", async () => {
     const { err } = await run(ctl.InitializePayment, { ...student("u4"), body: { courseIds: ["wp-99"] } });
     assert.ok(err && err.statusCode === 400);
+  });
+
+  await test("a course with no lessons yet cannot be bought", async () => {
+    const { err } = await run(ctl.InitializePayment, { ...student("u4"), body: { courseIds: ["wp-50"] } });
+    assert.ok(err && err.statusCode === 409 && /coming soon/.test(err.message));
   });
 
   // ---- verify ------------------------------------------------------------
